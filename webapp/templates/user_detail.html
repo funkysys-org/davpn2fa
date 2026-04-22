@@ -1,0 +1,141 @@
+{% extends "base.html" %}
+
+{% block title %}{{ user.username }} — OpenVPN Manager{% endblock %}
+{% block page_title %}{{ user.username }}{% endblock %}
+
+{% block header_actions %}
+  <a href="{{ url_for('users') }}" class="text-sm text-slate-500 hover:text-slate-800 transition-colors">
+    ← All Users
+  </a>
+{% endblock %}
+
+{% block content %}
+<div class="max-w-3xl mx-auto space-y-6">
+
+  <!-- Status + Actions card -->
+  <div class="bg-white rounded-xl border border-slate-200 shadow-sm">
+    <div class="px-6 py-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-100">
+      <div class="flex items-center gap-4">
+        <div class="w-12 h-12 bg-slate-100 rounded-xl flex items-center justify-center">
+          <svg class="w-6 h-6 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/>
+          </svg>
+        </div>
+        <div>
+          <h2 class="text-xl font-bold text-slate-900 font-mono">{{ user.username }}</h2>
+          <div class="flex items-center gap-2 mt-1">
+            {% if user.cert_status == 'valid' %}
+              <span class="inline-flex items-center gap-1 text-xs font-medium text-green-700 bg-green-100 px-2.5 py-0.5 rounded-full">
+                <span class="w-1.5 h-1.5 bg-green-500 rounded-full"></span>Valid certificate
+              </span>
+            {% elif user.cert_status == 'revoked' %}
+              <span class="inline-flex items-center gap-1 text-xs font-medium text-red-700 bg-red-100 px-2.5 py-0.5 rounded-full">
+                <span class="w-1.5 h-1.5 bg-red-500 rounded-full"></span>Revoked
+              </span>
+            {% else %}
+              <span class="inline-flex items-center gap-1 text-xs font-medium text-amber-700 bg-amber-100 px-2.5 py-0.5 rounded-full">
+                <span class="w-1.5 h-1.5 bg-amber-500 rounded-full"></span>{{ user.cert_status | capitalize }}
+              </span>
+            {% endif %}
+            {% if user.has_totp %}
+              <span class="text-xs font-medium text-blue-700 bg-blue-100 px-2.5 py-0.5 rounded-full">2FA configured</span>
+            {% else %}
+              <span class="text-xs font-medium text-slate-500 bg-slate-100 px-2.5 py-0.5 rounded-full">No 2FA</span>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+
+      <!-- Action buttons -->
+      <div class="flex flex-wrap items-center gap-2">
+        {% if user.has_totp %}
+          <a href="{{ url_for('show_qr', username=user.username) }}"
+             class="flex items-center gap-1.5 px-3.5 py-2 text-sm font-medium text-slate-700 border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors">
+            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm12 0h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1zM5 20h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1z"/>
+            </svg>
+            QR Code
+          </a>
+        {% endif %}
+        {% if user.cert_status == 'valid' %}
+          <a href="{{ url_for('download_profile', username=user.username) }}"
+             class="flex items-center gap-1.5 px-3.5 py-2 text-sm font-medium text-blue-700 border border-blue-200 bg-blue-50 rounded-lg hover:bg-blue-100 transition-colors">
+            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
+            </svg>
+            Download .ovpn
+          </a>
+          <form method="POST" action="{{ url_for('revoke_user_route', username=user.username) }}"
+                onsubmit="return confirm('Permanently revoke {{ user.username }}? This cannot be undone.')">
+            <button type="submit"
+                    class="flex items-center gap-1.5 px-3.5 py-2 text-sm font-medium text-red-600 border border-red-200 bg-red-50 rounded-lg hover:bg-red-100 transition-colors">
+              <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636"/>
+              </svg>
+              Revoke
+            </button>
+          </form>
+        {% endif %}
+      </div>
+    </div>
+
+    <!-- Details grid -->
+    <div class="px-6 py-4 grid grid-cols-2 gap-x-8 gap-y-3 text-sm">
+      <div>
+        <p class="text-xs font-medium text-slate-500 uppercase tracking-wide mb-0.5">Expires</p>
+        <p class="text-slate-900">
+          {% if user.expiry %}{{ user.expiry.strftime('%Y-%m-%d') }}{% else %}—{% endif %}
+        </p>
+      </div>
+      <div>
+        <p class="text-xs font-medium text-slate-500 uppercase tracking-wide mb-0.5">Profile</p>
+        <p class="text-slate-900">{{ 'Ready' if user.has_profile else 'Not generated' }}</p>
+      </div>
+      {% if cert_info %}
+        {% for k, v in cert_info.items() %}
+          <div class="col-span-2">
+            <p class="text-xs font-medium text-slate-500 uppercase tracking-wide mb-0.5">{{ k }}</p>
+            <p class="text-slate-700 font-mono text-xs break-all">{{ v }}</p>
+          </div>
+        {% endfor %}
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- QR / TOTP card -->
+  {% if user.has_totp %}
+    <div class="bg-white rounded-xl border border-slate-200 shadow-sm">
+      <div class="px-6 py-5 border-b border-slate-100 flex items-center justify-between">
+        <div>
+          <h3 class="font-semibold text-slate-900">Google Authenticator</h3>
+          <p class="text-slate-500 text-sm mt-0.5">The user must enter the 6-digit code as their VPN password.</p>
+        </div>
+      </div>
+      <div class="px-6 py-6 flex flex-col sm:flex-row items-center gap-8">
+        {% if qr_b64 %}
+          <div class="p-3 bg-white border-2 border-slate-100 rounded-xl shadow-inner flex-shrink-0">
+            <img src="data:image/png;base64,{{ qr_b64 }}" alt="TOTP QR Code" class="w-44 h-44" />
+          </div>
+        {% endif %}
+        <div class="space-y-3 text-sm">
+          <p class="text-slate-700">Scan the QR code with Google Authenticator to set up or re-link 2FA.</p>
+          {% if totp_uri %}
+            <details>
+              <summary class="text-xs text-slate-400 hover:text-slate-600 cursor-pointer select-none">
+                Show OTP URI
+              </summary>
+              <p class="mt-2 font-mono text-xs text-slate-600 bg-slate-50 px-3 py-2 rounded-lg border border-slate-200 break-all">
+                {{ totp_uri }}
+              </p>
+            </details>
+          {% endif %}
+          <div class="bg-amber-50 border border-amber-100 rounded-lg px-3 py-2 text-xs text-amber-800">
+            Keep this QR code private. Anyone who scans it can generate valid OTP codes for this user.
+          </div>
+        </div>
+      </div>
+    </div>
+  {% endif %}
+
+</div>
+{% endblock %}

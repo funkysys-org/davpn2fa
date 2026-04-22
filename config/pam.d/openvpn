@@ -1,0 +1,8 @@
+# PAM: require a valid Google Authenticator TOTP code as the VPN password.
+# Secret stored per-user at: /etc/openvpn/data/users/<USER>/.google_authenticator
+auth required pam_google_authenticator.so \
+    secret=/etc/openvpn/data/users/${USER}/.google_authenticator \
+    noskewadj \
+    no_increment_hotp
+
+account required pam_permit.so

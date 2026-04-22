@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+
+{% block title %}QR Code: {{ username }} — OpenVPN Manager{% endblock %}
+{% block page_title %}TOTP QR Code{% endblock %}
+
+{% block header_actions %}
+  <a href="{{ url_for('user_detail', username=username) }}"
+     class="text-sm text-slate-500 hover:text-slate-800 transition-colors">
+    ← {{ username }}
+  </a>
+{% endblock %}
+
+{% block content %}
+<div class="max-w-md mx-auto">
+  <div class="bg-white rounded-xl border border-slate-200 shadow-sm">
+    <div class="px-6 py-5 border-b border-slate-100 text-center">
+      <h2 class="font-semibold text-slate-900">Scan in Google Authenticator</h2>
+      <p class="text-slate-500 text-sm mt-1">For user <span class="font-mono font-medium text-slate-800">{{ username }}</span></p>
+    </div>
+    <div class="flex flex-col items-center py-8 px-6 gap-5">
+      {% if qr_b64 %}
+        <div class="p-5 bg-white border-2 border-slate-100 rounded-2xl shadow-inner">
+          <img src="data:image/png;base64,{{ qr_b64 }}" alt="TOTP QR Code for {{ username }}" class="w-56 h-56" />
+        </div>
+      {% endif %}
+      {% if totp_uri %}
+        <details class="w-full">
+          <summary class="text-xs text-slate-400 hover:text-slate-600 cursor-pointer select-none text-center">
+            Show manual entry key
+          </summary>
+          <div class="mt-3 font-mono text-xs text-slate-600 bg-slate-50 px-4 py-3 rounded-lg border border-slate-200 break-all">
+            {{ totp_uri }}
+          </div>
+        </details>
+      {% endif %}
+      <div class="w-full bg-amber-50 border border-amber-100 rounded-lg px-4 py-3 text-xs text-amber-800">
+        This QR code is sensitive. Only share it directly with the user in a secure context.
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

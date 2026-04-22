@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="en" class="h-full">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>{% block title %}OpenVPN Manager{% endblock %}</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            brand: { DEFAULT: '#2563eb', dark: '#1d4ed8', light: '#3b82f6' }
+          },
+          fontFamily: { sans: ['Inter', 'system-ui', 'sans-serif'] }
+        }
+      }
+    }
+  </script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    [x-cloak] { display: none !important; }
+    .sidebar-link { @apply flex items-center gap-3 px-3 py-2.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-700/60 transition-all duration-150 text-sm font-medium; }
+    .sidebar-link.active { @apply text-white bg-blue-600; }
+  </style>
+</head>
+<body class="h-full bg-slate-50 font-sans antialiased">
+
+<div class="flex h-full min-h-screen">
+
+  <!-- Sidebar -->
+  <aside class="w-64 bg-slate-900 flex flex-col flex-shrink-0 fixed inset-y-0 left-0 z-30">
+    <!-- Logo -->
+    <div class="flex items-center gap-3 px-6 py-5 border-b border-slate-700/60">
+      <div class="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center flex-shrink-0">
+        <svg class="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/>
+        </svg>
+      </div>
+      <div>
+        <p class="text-white font-semibold text-sm leading-tight">OpenVPN</p>
+        <p class="text-slate-400 text-xs">Manager</p>
+      </div>
+    </div>
+
+    <!-- Navigation -->
+    <nav class="flex-1 px-4 py-4 space-y-1">
+      <a href="{{ url_for('dashboard') }}"
+         class="sidebar-link {% if request.endpoint == 'dashboard' %}active{% endif %}">
+        <svg class="w-4.5 h-4.5 w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M3 7h18M3 12h18M3 17h18"/>
+        </svg>
+        Dashboard
+      </a>
+      <a href="{{ url_for('users') }}"
+         class="sidebar-link {% if request.endpoint in ('users','user_detail','add_user_route') %}active{% endif %}">
+        <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/>
+        </svg>
+        Users
+      </a>
+      <a href="{{ url_for('add_user_route') }}"
+         class="sidebar-link">
+        <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z"/>
+        </svg>
+        Add User
+      </a>
+    </nav>
+
+    <!-- User info + Logout -->
+    <div class="px-4 py-4 border-t border-slate-700/60">
+      <div class="flex items-center gap-3 mb-3">
+        <div class="w-8 h-8 bg-slate-700 rounded-full flex items-center justify-center flex-shrink-0">
+          <svg class="w-4 h-4 text-slate-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/>
+          </svg>
+        </div>
+        <p class="text-slate-300 text-xs truncate max-w-[140px]">{{ session.get('user_email', 'Admin') }}</p>
+      </div>
+      <form method="POST" action="{{ url_for('logout') }}">
+        <button type="submit"
+                class="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-slate-400 hover:text-red-400 hover:bg-red-500/10 transition-all duration-150 text-sm font-medium">
+          <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/>
+          </svg>
+          Sign out
+        </button>
+      </form>
+    </div>
+  </aside>
+
+  <!-- Main content -->
+  <div class="flex-1 ml-64 flex flex-col min-h-screen">
+
+    <!-- Top bar -->
+    <header class="bg-white border-b border-slate-200 px-8 py-4 flex items-center justify-between">
+      <h1 class="text-slate-900 font-semibold text-lg">{% block page_title %}{% endblock %}</h1>
+      <div class="flex items-center gap-3">
+        {% block header_actions %}{% endblock %}
+      </div>
+    </header>
+
+    <!-- Flash messages -->
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        <div class="px-8 pt-4 space-y-2">
+          {% for category, message in messages %}
+            {% set colors = {
+              'success': 'bg-green-50 border-green-200 text-green-800',
+              'error':   'bg-red-50 border-red-200 text-red-800',
+              'warning': 'bg-amber-50 border-amber-200 text-amber-800',
+              'info':    'bg-blue-50 border-blue-200 text-blue-800',
+            } %}
+            <div class="flex items-start gap-3 px-4 py-3 rounded-lg border text-sm font-medium
+                        {{ colors.get(category, colors['info']) }}">
+              <span class="flex-1">{{ message }}</span>
+              <button onclick="this.parentElement.remove()" class="opacity-60 hover:opacity-100 ml-2">✕</button>
+            </div>
+          {% endfor %}
+        </div>
+      {% endif %}
+    {% endwith %}
+
+    <!-- Page content -->
+    <main class="flex-1 px-8 py-6">
+      {% block content %}{% endblock %}
+    </main>
+
+    <footer class="px-8 py-4 text-xs text-slate-400 border-t border-slate-200">
+      OpenVPN Manager &mdash; all traffic secured with certificate + TOTP authentication
+    </footer>
+  </div>
+</div>
+
+{% block scripts %}{% endblock %}
+</body>
+</html>
