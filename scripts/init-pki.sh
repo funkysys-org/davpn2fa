@@ -21,7 +21,6 @@ export EASYRSA_BATCH=1
 export EASYRSA_KEY_SIZE="${EASYRSA_KEY_SIZE:-4096}"
 export EASYRSA_CA_EXPIRE="${EASYRSA_CA_EXPIRE:-3650}"
 export EASYRSA_CERT_EXPIRE="${EASYRSA_CERT_EXPIRE:-825}"
-export EASYRSA_REQ_CN="OpenVPN-CA"
 
 mkdir -p "$DATA_DIR/users" "$DATA_DIR/clients"
 
@@ -29,9 +28,10 @@ info "Initialising PKI..."
 easyrsa init-pki
 
 info "Building CA..."
-easyrsa build-ca nopass
+EASYRSA_REQ_CN="OpenVPN-CA" easyrsa build-ca nopass
 
 info "Generating server certificate..."
+# CN must be "server" so clients can verify with: verify-x509-name server name
 easyrsa gen-req server nopass
 easyrsa sign-req server server
 
