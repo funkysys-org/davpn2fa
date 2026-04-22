@@ -269,6 +269,7 @@ def add_user_route():
     if request.method == "POST":
         username = request.form.get("username", "").strip()
         server_ip = request.form.get("server_ip", "").strip() or default_ip or None
+        require_totp = request.form.get("require_totp") == "1"
 
         if not re.match(r"^[a-zA-Z0-9_-]{1,64}$", username):
             flash(
@@ -278,9 +279,9 @@ def add_user_route():
             return render_template("add_user.html", default_server_ip=default_ip)
 
         try:
-            totp_uri = add_user(username, server_ip)
+            totp_uri = add_user(username, server_ip, require_totp=require_totp)
             qr_b64 = get_totp_qr_base64(username)
-            _log("user_added", target_user=username, details={"server_ip": server_ip})
+            _log("user_added", target_user=username, details={"server_ip": server_ip, "totp": require_totp})
             flash(f"User '{username}' created successfully.", "success")
             return render_template(
                 "user_created.html",

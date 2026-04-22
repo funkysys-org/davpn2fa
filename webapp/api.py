@@ -243,9 +243,10 @@ def api_add_user():
       - Users
     summary: Create a VPN user
     description: >
-      Generates a client certificate signed by the CA, creates a TOTP secret,
-      and builds a ready-to-use .ovpn profile. Returns the TOTP URI and a
-      base64-encoded QR code PNG.
+      Generates a client certificate signed by the CA, optionally creates a TOTP secret,
+      and builds a ready-to-use .ovpn profile. When `require_totp` is true (default),
+      returns the TOTP URI and a base64-encoded QR code PNG. When false, both fields
+      are null and the profile will not prompt for a password on connect.
     security:
       - Bearer: []
     parameters:
@@ -265,6 +266,10 @@ def api_add_user():
               type: string
               description: "Public IP or hostname to embed in the profile. Falls back to OPENVPN_SERVER_IP."
               example: "1.2.3.4"
+            require_totp:
+              type: boolean
+              description: "Whether to generate a TOTP secret for Google Authenticator. Defaults to true."
+              example: true
     responses:
       201:
         description: User created successfully.
@@ -276,10 +281,12 @@ def api_add_user():
               example: alice
             totp_uri:
               type: string
+              nullable: true
               example: "otpauth://totp/OpenVPN:alice?secret=ABCDEFGH&issuer=OpenVPN"
             totp_qr_png_base64:
               type: string
-              description: Base64-encoded PNG of the TOTP QR code.
+              nullable: true
+              description: Base64-encoded PNG of the TOTP QR code. Null when require_totp is false.
       400:
         description: Invalid username format.
         schema:
@@ -300,6 +307,9 @@ def api_add_user():
     body = request.get_json(silent=True) or {}
     username = (body.get("username") or "").strip()
     server_ip = (body.get("server_ip") or os.environ.get("OPENVPN_SERVER_IP", "") or "").strip() or None
+    require_totp = body.get("require_totp", True)
+    if not isinstance(require_totp, bool):
+        require_totp = True
 
     if not USERNAME_RE.match(username):
         return _api_error("username must be 1–64 chars: letters, digits, _ and - only")
@@ -308,9 +318,9 @@ def api_add_user():
         return _api_error("PKI is not initialised. Run init-pki on the openvpn container first.", 503)
 
     try:
-        totp_uri = add_user(username, server_ip)
+        totp_uri = add_user(username, server_ip, require_totp=require_totp)
         qr_b64 = get_totp_qr_base64(username)
-        _log("user_added", target_user=username, details={"server_ip": server_ip, "source": "api"})
+        _log("user_added", target_user=username, details={"server_ip": server_ip, "totp": require_totp, "source": "api"})
         return jsonify(
             {
                 "username": username,

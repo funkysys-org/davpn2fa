@@ -63,7 +63,7 @@ def list_users():
     return users
 
 
-def add_user(username, server_ip=None):
+def add_user(username, server_ip=None, require_totp=True):
     if os.path.exists(f"{PKI_DIR}/issued/{username}.crt"):
         raise FileExistsError(
             f"User '{username}' already exists. Revoke the existing certificate first."
@@ -86,24 +86,25 @@ def add_user(username, server_ip=None):
         capture_output=True,
     )
 
-    ga_file = f"{user_dir}/.google_authenticator"
-    subprocess.run(
-        [
-            "google-authenticator",
-            "--time-based",
-            "--disallow-reuse",
-            "--force",
-            "--rate-limit=3",
-            "--rate-time=30",
-            "--window-size=3",
-            "--no-confirm",
-            "--qr-mode=NONE",
-            f"--secret={ga_file}",
-        ],
-        check=True,
-        capture_output=True,
-    )
-    os.chmod(ga_file, 0o600)
+    if require_totp:
+        ga_file = f"{user_dir}/.google_authenticator"
+        subprocess.run(
+            [
+                "google-authenticator",
+                "--time-based",
+                "--disallow-reuse",
+                "--force",
+                "--rate-limit=3",
+                "--rate-time=30",
+                "--window-size=3",
+                "--no-confirm",
+                "--qr-mode=NONE",
+                f"--secret={ga_file}",
+            ],
+            check=True,
+            capture_output=True,
+        )
+        os.chmod(ga_file, 0o600)
 
     _build_client_profile(username, server_ip)
     return get_totp_uri(username)
@@ -246,16 +247,20 @@ def _build_client_profile(username, server_ip=None):
     key = Path(f"{PKI_DIR}/private/{username}.key").read_text().strip()
     ta = Path(f"{PKI_DIR}/ta.key").read_text().strip()
 
+    has_totp = os.path.exists(f"{DATA_DIR}/users/{username}/.google_authenticator")
+    totp_comment = "# Password prompt = current 6-digit Google Authenticator code\n" if has_totp else "# Certificate-only auth — no password prompt\n"
+    auth_user_pass = "auth-user-pass\n" if has_totp else ""
+
     profile = (
         f"# OpenVPN client profile for: {username}\n"
         f"# Generated: {datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S UTC')}\n"
-        f"# Password prompt = current 6-digit Google Authenticator code\n\n"
+        f"{totp_comment}\n"
         f"client\ndev tun\nproto {proto}\n"
         f"remote {server_ip} {port}\n"
         f"resolv-retry infinite\nnobind\npersist-key\npersist-tun\n\n"
         f"remote-cert-tls server\nverify-x509-name server name\n\n"
         f"cipher AES-256-GCM\nauth SHA256\ntls-version-min 1.2\n\n"
-        f"auth-user-pass\nkey-direction 1\nverb 3\n\n"
+        f"{auth_user_pass}key-direction 1\nverb 3\n\n"
         f"<ca>\n{ca}\n</ca>\n\n"
         f"<cert>\n{cert}\n</cert>\n\n"
         f"<key>\n{key}\n</key>\n\n"

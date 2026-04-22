@@ -15,7 +15,7 @@
 
     <div class="px-8 py-6 border-b border-slate-100">
       <h2 class="text-slate-900 font-semibold">New VPN User</h2>
-      <p class="text-slate-500 text-sm mt-1">Creates a client certificate + Google Authenticator TOTP secret.</p>
+      <p class="text-slate-500 text-sm mt-1">Creates a client certificate and optional Google Authenticator 2FA.</p>
     </div>
 
     <form method="POST" action="{{ url_for('add_user_route') }}" class="px-8 py-6 space-y-5">
@@ -46,8 +46,25 @@
         <p class="text-slate-400 text-xs mt-1.5">Embedded into the .ovpn profile. Can be edited later.</p>
       </div>
 
+      <!-- TOTP toggle -->
+      <div class="border border-slate-200 rounded-lg px-4 py-3.5">
+        <label class="flex items-start gap-3 cursor-pointer select-none">
+          <div class="flex-shrink-0 mt-0.5">
+            <input type="checkbox" id="require_totp" name="require_totp" value="1" checked
+                   class="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer" />
+          </div>
+          <div>
+            <p class="text-sm font-medium text-slate-800">Enable two-factor authentication (TOTP)</p>
+            <p class="text-xs text-slate-500 mt-0.5">
+              When enabled, the user will be prompted for a 6-digit Google Authenticator code every time they connect.
+              When disabled, the certificate alone is sufficient to connect.
+            </p>
+          </div>
+        </label>
+      </div>
+
       <!-- Info box -->
-      <div class="bg-blue-50 border border-blue-100 rounded-lg px-4 py-3.5 text-sm text-blue-800 space-y-1">
+      <div id="info-totp" class="bg-blue-50 border border-blue-100 rounded-lg px-4 py-3.5 text-sm text-blue-800 space-y-1">
         <p class="font-medium text-blue-900">What happens next</p>
         <ul class="list-disc list-inside text-blue-700 space-y-0.5 text-xs mt-1">
           <li>A client certificate is generated and signed by the CA</li>
@@ -56,6 +73,28 @@
           <li>A QR code is displayed for the user to scan</li>
         </ul>
       </div>
+      <div id="info-no-totp" class="hidden bg-slate-50 border border-slate-200 rounded-lg px-4 py-3.5 text-sm text-slate-700 space-y-1">
+        <p class="font-medium text-slate-800">What happens next</p>
+        <ul class="list-disc list-inside text-slate-600 space-y-0.5 text-xs mt-1">
+          <li>A client certificate is generated and signed by the CA</li>
+          <li>A ready-to-use .ovpn profile is built with all keys embedded</li>
+          <li>No password will be required — the certificate authenticates the user</li>
+        </ul>
+      </div>
+
+      <script>
+        (function () {
+          var cb = document.getElementById('require_totp');
+          var infoTotp = document.getElementById('info-totp');
+          var infoNoTotp = document.getElementById('info-no-totp');
+          function update() {
+            infoTotp.classList.toggle('hidden', !cb.checked);
+            infoNoTotp.classList.toggle('hidden', cb.checked);
+          }
+          cb.addEventListener('change', update);
+          update();
+        })();
+      </script>
 
       <div class="flex gap-3 pt-2">
         <button type="submit"

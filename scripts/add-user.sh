@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# add-user — Generate cert + TOTP + .ovpn for a new user.
-# Usage: docker exec -it openvpn add-user <username> [--server-ip <IP>]
+# add-user — Generate cert + optional TOTP + .ovpn for a new user.
+# Usage: docker exec -it openvpn add-user <username> [--server-ip <IP>] [--no-totp]
 set -euo pipefail
 
 DATA_DIR="/etc/openvpn/data"
@@ -12,12 +12,17 @@ ok()   { echo "[OK]    $*"; }
 
 USERNAME="${1:-}"
 SERVER_IP="${OPENVPN_SERVER_IP:-}"
+REQUIRE_TOTP=true
 shift || true
 while [[ $# -gt 0 ]]; do
-    case "$1" in --server-ip) SERVER_IP="$2"; shift 2 ;; *) die "Unknown: $1" ;; esac
+    case "$1" in
+        --server-ip) SERVER_IP="$2"; shift 2 ;;
+        --no-totp)   REQUIRE_TOTP=false; shift ;;
+        *) die "Unknown option: $1" ;;
+    esac
 done
 
-[[ -z "$USERNAME" ]] && die "Usage: add-user <username> [--server-ip <IP>]"
+[[ -z "$USERNAME" ]] && die "Usage: add-user <username> [--server-ip <IP>] [--no-totp]"
 [[ "$USERNAME" =~ ^[a-zA-Z0-9_-]+$ ]] || die "Username: letters, digits, _ and - only"
 [[ -f "$PKI_DIR/ca.crt" ]] || die "PKI not initialised. Run: init-pki"
 [[ -f "$PKI_DIR/issued/$USERNAME.crt" ]] && die "User '$USERNAME' already exists"
@@ -34,13 +39,18 @@ info "Generating certificate..."
 easyrsa gen-req "$USERNAME" nopass
 easyrsa sign-req client "$USERNAME"
 
-info "Generating TOTP secret..."
-GA_FILE="$USER_DIR/.google_authenticator"
-google-authenticator --time-based --disallow-reuse --force \
-    --rate-limit=3 --rate-time=30 --window-size=3 \
-    --no-confirm --qr-mode=NONE --secret="$GA_FILE" > /dev/null 2>&1
-chmod 600 "$GA_FILE"
-TOTP_SECRET=$(head -1 "$GA_FILE")
+if [[ "$REQUIRE_TOTP" == true ]]; then
+    info "Generating TOTP secret..."
+    GA_FILE="$USER_DIR/.google_authenticator"
+    google-authenticator --time-based --disallow-reuse --force \
+        --rate-limit=3 --rate-time=30 --window-size=3 \
+        --no-confirm --qr-mode=NONE --secret="$GA_FILE" > /dev/null 2>&1
+    chmod 600 "$GA_FILE"
+    TOTP_SECRET=$(head -1 "$GA_FILE")
+else
+    info "Skipping TOTP — user will authenticate with certificate only."
+    TOTP_SECRET=""
+fi
 
 # Detect server IP
 if [[ -z "$SERVER_IP" ]]; then
@@ -87,17 +97,27 @@ $TA_KEY
 OVPN
 chmod 600 "$CLIENT_CONF"
 
-OTP_URI="otpauth://totp/OpenVPN:${USERNAME}?secret=${TOTP_SECRET}&issuer=OpenVPN&algorithm=SHA1&digits=6&period=30"
-
 echo ""
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo "  User '$USERNAME' created"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo ""
-echo "  Scan QR code (or use the web UI):"
-qrencode -t ANSI256 "$OTP_URI"
-echo ""
-echo "  Manual secret: $TOTP_SECRET"
+
+if [[ "$REQUIRE_TOTP" == true ]]; then
+    OTP_URI="otpauth://totp/OpenVPN:${USERNAME}?secret=${TOTP_SECRET}&issuer=OpenVPN&algorithm=SHA1&digits=6&period=30"
+    echo "  Scan QR code (or use the web UI):"
+    qrencode -t ANSI256 "$OTP_URI"
+    echo ""
+    echo "  Manual secret: $TOTP_SECRET"
+else
+    echo "  Auth mode: certificate only (no TOTP required)"
+fi
+
 echo "  Profile:       $CLIENT_CONF"
 echo ""
-ok "Done. Import the .ovpn and scan QR code in Google Authenticator."
+
+if [[ "$REQUIRE_TOTP" == true ]]; then
+    ok "Done. Import the .ovpn and scan QR code in Google Authenticator."
+else
+    ok "Done. Import the .ovpn — no password will be required on connect."
+fi

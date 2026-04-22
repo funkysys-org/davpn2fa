@@ -1,8 +1,13 @@
-# PAM: require a valid Google Authenticator TOTP code as the VPN password.
+# PAM: validate Google Authenticator TOTP when the user has a secret file.
+# Users without a .google_authenticator file (nullok) pass through without a password.
 # Secret stored per-user at: /etc/openvpn/data/users/<USER>/.google_authenticator
-auth required pam_google_authenticator.so \
+auth sufficient pam_google_authenticator.so \
     secret=/etc/openvpn/data/users/${USER}/.google_authenticator \
+    nullok \
     noskewadj \
     no_increment_hotp
+
+# Allow users who have no TOTP secret (certificate-only auth).
+auth sufficient pam_permit.so
 
 account required pam_permit.so
