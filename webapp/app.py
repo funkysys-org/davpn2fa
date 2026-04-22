@@ -48,8 +48,47 @@ if SUPABASE_URL and SUPABASE_ANON_KEY:
 
 app.config["SUPABASE_BASE"] = _supabase_base
 
+from flasgger import Swagger  # noqa: E402
 from api import api as api_blueprint  # noqa: E402
+
 app.register_blueprint(api_blueprint)
+
+Swagger(app, config={
+    "headers": [],
+    "specs": [
+        {
+            "endpoint": "apispec",
+            "route": "/api/v1/apispec.json",
+            "rule_filter": lambda rule: rule.rule.startswith("/api/v1"),
+            "model_filter": lambda tag: True,
+        }
+    ],
+    "static_url_path": "/flasgger_static",
+    "swagger_ui": True,
+    "specs_route": "/api/docs",
+}, template={
+    "info": {
+        "title": "OpenVPN Manager API",
+        "description": (
+            "REST API for the OpenVPN 2FA management webapp.\n\n"
+            "**Authentication:** include a Supabase JWT as `Authorization: Bearer <token>`. "
+            "When `AUTH_DISABLED=1` the header is not required."
+        ),
+        "version": "1.0.0",
+        "contact": {"name": "OpenVPN Manager"},
+    },
+    "securityDefinitions": {
+        "Bearer": {
+            "type": "apiKey",
+            "name": "Authorization",
+            "in": "header",
+            "description": "Supabase JWT — format: `Bearer <token>`",
+        }
+    },
+    "security": [{"Bearer": []}],
+    "consumes": ["application/json"],
+    "produces": ["application/json"],
+})
 
 
 @app.context_processor

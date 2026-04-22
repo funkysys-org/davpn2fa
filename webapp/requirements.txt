@@ -3,3 +3,4 @@ gunicorn==21.2.0
 supabase==2.5.3
 qrcode[pil]==7.4.2
 Pillow==10.3.0
+flasgger==0.9.7.1

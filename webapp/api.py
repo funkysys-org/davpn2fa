@@ -51,7 +51,6 @@ def require_api_auth(f):
         token = auth_header[len("Bearer "):]
         sb = _supabase()
         if not sb:
-            # No Supabase configured — accept any bearer token and record it
             g.api_user = "api-user"
             return f(*args, **kwargs)
 
@@ -90,7 +89,70 @@ def _log(action, target_user=None, details=None):
 @api.route("/status", methods=["GET"])
 @require_api_auth
 def status():
-    """Overall VPN status: PKI state, user counts, connected clients."""
+    """
+    Get overall VPN status.
+    ---
+    tags:
+      - Status
+    summary: VPN status overview
+    description: Returns PKI initialisation state, user counts by certificate status, and connected clients.
+    security:
+      - Bearer: []
+    responses:
+      200:
+        description: Status retrieved successfully.
+        schema:
+          type: object
+          properties:
+            pki_initialized:
+              type: boolean
+              example: true
+            stats:
+              type: object
+              properties:
+                total:
+                  type: integer
+                  example: 5
+                valid:
+                  type: integer
+                  example: 4
+                revoked:
+                  type: integer
+                  example: 1
+                expired:
+                  type: integer
+                  example: 0
+                connected:
+                  type: integer
+                  example: 2
+            connected_clients:
+              type: array
+              items:
+                type: object
+                properties:
+                  username:
+                    type: string
+                    example: alice
+                  real_address:
+                    type: string
+                    example: "1.2.3.4:12345"
+                  virtual_address:
+                    type: string
+                    example: "10.8.0.2"
+                  bytes_rx:
+                    type: string
+                    example: "12345"
+                  bytes_tx:
+                    type: string
+                    example: "67890"
+                  connected_since:
+                    type: string
+                    example: "2026-04-22 10:00:00"
+      401:
+        description: Missing or invalid auth token.
+        schema:
+          $ref: '#/definitions/Error'
+    """
     initialized = pki_initialized()
     users = list_users() if initialized else []
     connected = get_connected_clients() if initialized else []
@@ -116,7 +178,42 @@ def status():
 @api.route("/users", methods=["GET"])
 @require_api_auth
 def api_list_users():
-    """List all VPN users. Optional query params: q (search), status (valid|revoked|expired)."""
+    """
+    List VPN users.
+    ---
+    tags:
+      - Users
+    summary: List all VPN users
+    description: Returns all users from the PKI index. Supports optional substring search and status filtering.
+    security:
+      - Bearer: []
+    parameters:
+      - name: q
+        in: query
+        type: string
+        required: false
+        description: Substring to search in usernames.
+      - name: status
+        in: query
+        type: string
+        required: false
+        enum: [valid, revoked, expired]
+        description: Filter by certificate status.
+    responses:
+      200:
+        description: List of users.
+        schema:
+          type: object
+          properties:
+            users:
+              type: array
+              items:
+                $ref: '#/definitions/UserSummary'
+      401:
+        description: Missing or invalid auth token.
+        schema:
+          $ref: '#/definitions/Error'
+    """
     if not pki_initialized():
         return jsonify({"users": []})
 
@@ -129,7 +226,6 @@ def api_list_users():
     if status_filter:
         users = [u for u in users if u["cert_status"] == status_filter]
 
-    # Serialize datetime fields
     for u in users:
         if u.get("expiry"):
             u["expiry"] = u["expiry"].isoformat()
@@ -140,7 +236,67 @@ def api_list_users():
 @api.route("/users", methods=["POST"])
 @require_api_auth
 def api_add_user():
-    """Create a new VPN user. Body: {"username": "...", "server_ip": "..."} (server_ip optional)."""
+    """
+    Create a new VPN user.
+    ---
+    tags:
+      - Users
+    summary: Create a VPN user
+    description: >
+      Generates a client certificate signed by the CA, creates a TOTP secret,
+      and builds a ready-to-use .ovpn profile. Returns the TOTP URI and a
+      base64-encoded QR code PNG.
+    security:
+      - Bearer: []
+    parameters:
+      - name: body
+        in: body
+        required: true
+        schema:
+          type: object
+          required:
+            - username
+          properties:
+            username:
+              type: string
+              description: "Letters, digits, _ and - only. Max 64 characters."
+              example: alice
+            server_ip:
+              type: string
+              description: "Public IP or hostname to embed in the profile. Falls back to OPENVPN_SERVER_IP."
+              example: "1.2.3.4"
+    responses:
+      201:
+        description: User created successfully.
+        schema:
+          type: object
+          properties:
+            username:
+              type: string
+              example: alice
+            totp_uri:
+              type: string
+              example: "otpauth://totp/OpenVPN:alice?secret=ABCDEFGH&issuer=OpenVPN"
+            totp_qr_png_base64:
+              type: string
+              description: Base64-encoded PNG of the TOTP QR code.
+      400:
+        description: Invalid username format.
+        schema:
+          $ref: '#/definitions/Error'
+      409:
+        description: Username already exists.
+        schema:
+          $ref: '#/definitions/Error'
+      503:
+        description: PKI not yet initialised.
+        schema:
+          $ref: '#/definitions/Error'
+      401:
+        description: Missing or invalid auth token.
+        schema:
+          $ref: '#/definitions/Error'
+    """
     body = request.get_json(silent=True) or {}
     username = (body.get("username") or "").strip()
     server_ip = (body.get("server_ip") or os.environ.get("OPENVPN_SERVER_IP", "") or "").strip() or None
@@ -174,7 +330,36 @@ def api_add_user():
 @api.route("/users/<username>", methods=["GET"])
 @require_api_auth
 def api_get_user(username):
-    """Get details for a single user including cert info and TOTP URI."""
+    """
+    Get user details.
+    ---
+    tags:
+      - Users
+    summary: Get a single VPN user
+    description: Returns certificate metadata, TOTP URI, and base64 QR code for the given user.
+    security:
+      - Bearer: []
+    parameters:
+      - name: username
+        in: path
+        type: string
+        required: true
+        description: VPN username.
+        example: alice
+    responses:
+      200:
+        description: User detail.
+        schema:
+          $ref: '#/definitions/UserDetail'
+      404:
+        description: User not found.
+        schema:
+          $ref: '#/definitions/Error'
+      401:
+        description: Missing or invalid auth token.
+        schema:
+          $ref: '#/definitions/Error'
+    """
     users = list_users()
     user = next((u for u in users if u["username"] == username), None)
     if not user:
@@ -193,7 +378,47 @@ def api_get_user(username):
 @api.route("/users/<username>/revoke", methods=["POST"])
 @require_api_auth
 def api_revoke_user(username):
-    """Revoke a user's certificate."""
+    """
+    Revoke a user's certificate.
+    ---
+    tags:
+      - Users
+    summary: Revoke a VPN user
+    description: Revokes the user's certificate, regenerates the CRL, and removes their profile and TOTP secret.
+    security:
+      - Bearer: []
+    parameters:
+      - name: username
+        in: path
+        type: string
+        required: true
+        description: VPN username to revoke.
+        example: alice
+    responses:
+      200:
+        description: User revoked.
+        schema:
+          type: object
+          properties:
+            username:
+              type: string
+              example: alice
+            status:
+              type: string
+              example: revoked
+      404:
+        description: User not found.
+        schema:
+          $ref: '#/definitions/Error'
+      409:
+        description: User already revoked.
+        schema:
+          $ref: '#/definitions/Error'
+      401:
+        description: Missing or invalid auth token.
+        schema:
+          $ref: '#/definitions/Error'
+    """
     users = list_users()
     user = next((u for u in users if u["username"] == username), None)
     if not user:
@@ -215,7 +440,40 @@ def api_revoke_user(username):
 @api.route("/users/<username>/profile", methods=["GET"])
 @require_api_auth
 def api_download_profile(username):
-    """Download the .ovpn client profile as plain text."""
+    """
+    Download .ovpn profile.
+    ---
+    tags:
+      - Users
+    summary: Download client profile
+    description: Returns the .ovpn client configuration file as a downloadable attachment.
+    security:
+      - Bearer: []
+    parameters:
+      - name: username
+        in: path
+        type: string
+        required: true
+        description: VPN username.
+        example: alice
+    produces:
+      - application/x-openvpn-profile
+    responses:
+      200:
+        description: The .ovpn file content.
+        headers:
+          Content-Disposition:
+            type: string
+            description: "attachment; filename=\"alice.ovpn\""
+      404:
+        description: Profile not found.
+        schema:
+          $ref: '#/definitions/Error'
+      401:
+        description: Missing or invalid auth token.
+        schema:
+          $ref: '#/definitions/Error'
+    """
     profile = get_client_profile(username)
     if not profile:
         return _api_error(f"No profile found for '{username}'. Certificate may not exist.", 404)
@@ -231,7 +489,87 @@ def api_download_profile(username):
 @api.route("/users/<username>/totp", methods=["GET"])
 @require_api_auth
 def api_get_totp(username):
-    """Return TOTP URI and QR code (base64 PNG) for a user."""
+    """
+    Get TOTP details.
+    ---
+    tags:
+      - Users
+    summary: Get TOTP URI and QR code
+    description: Returns the otpauth URI and a base64-encoded PNG of the QR code for the user's TOTP secret.
+    security:
+      - Bearer: []
+    parameters:
+      - name: username
+        in: path
+        type: string
+        required: true
+        description: VPN username.
+        example: alice
+    responses:
+      200:
+        description: TOTP details.
+        schema:
+          type: object
+          properties:
+            username:
+              type: string
+              example: alice
+            totp_uri:
+              type: string
+              example: "otpauth://totp/OpenVPN:alice?secret=ABCDEFGH&issuer=OpenVPN"
+            totp_qr_png_base64:
+              type: string
+              description: Base64-encoded PNG of the TOTP QR code.
+      404:
+        description: User not found, or user has no TOTP secret.
+        schema:
+          $ref: '#/definitions/Error'
+      401:
+        description: Missing or invalid auth token.
+        schema:
+          $ref: '#/definitions/Error'
+    definitions:
+      Error:
+        type: object
+        properties:
+          error:
+            type: string
+            example: "User 'alice' not found"
+      UserSummary:
+        type: object
+        properties:
+          username:
+            type: string
+            example: alice
+          cert_status:
+            type: string
+            enum: [valid, revoked, expired]
+            example: valid
+          expiry:
+            type: string
+            format: date-time
+            example: "2028-07-25T12:00:00"
+          has_totp:
+            type: boolean
+            example: true
+          has_profile:
+            type: boolean
+            example: true
+      UserDetail:
+        allOf:
+          - $ref: '#/definitions/UserSummary'
+          - type: object
+            properties:
+              cert_info:
+                type: object
+                description: Raw certificate metadata.
+              totp_uri:
+                type: string
+                example: "otpauth://totp/OpenVPN:alice?secret=ABCDEFGH&issuer=OpenVPN"
+              totp_qr_png_base64:
+                type: string
+                description: Base64-encoded PNG of the TOTP QR code.
+    """
     users = list_users()
     user = next((u for u in users if u["username"] == username), None)
     if not user:
