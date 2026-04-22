@@ -32,6 +32,7 @@ app = Flask(__name__)
 app.secret_key = os.environ.get("FLASK_SECRET_KEY", os.urandom(32))
 
 AUTH_DISABLED = os.environ.get("AUTH_DISABLED", "0") == "1"
+app.config["AUTH_DISABLED"] = AUTH_DISABLED
 
 SUPABASE_URL = os.environ.get("SUPABASE_URL", "")
 SUPABASE_ANON_KEY = os.environ.get("SUPABASE_ANON_KEY", "")
@@ -44,6 +45,11 @@ if SUPABASE_URL and SUPABASE_ANON_KEY:
         _supabase_base = create_client(SUPABASE_URL, SUPABASE_ANON_KEY)
     except Exception:
         pass
+
+app.config["SUPABASE_BASE"] = _supabase_base
+
+from api import api as api_blueprint  # noqa: E402
+app.register_blueprint(api_blueprint)
 
 
 @app.context_processor
