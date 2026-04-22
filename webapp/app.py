@@ -31,6 +31,8 @@ from lib.vpn import (
 app = Flask(__name__)
 app.secret_key = os.environ.get("FLASK_SECRET_KEY", os.urandom(32))
 
+AUTH_DISABLED = os.environ.get("AUTH_DISABLED", "0") == "1"
+
 SUPABASE_URL = os.environ.get("SUPABASE_URL", "")
 SUPABASE_ANON_KEY = os.environ.get("SUPABASE_ANON_KEY", "")
 _supabase_base = None
@@ -42,6 +44,11 @@ if SUPABASE_URL and SUPABASE_ANON_KEY:
         _supabase_base = create_client(SUPABASE_URL, SUPABASE_ANON_KEY)
     except Exception:
         pass
+
+
+@app.context_processor
+def inject_globals():
+    return {"auth_disabled": AUTH_DISABLED}
 
 
 def _get_authed_client():
@@ -81,6 +88,8 @@ def _log(action, target_user=None, details=None):
 def require_auth(f):
     @wraps(f)
     def decorated(*args, **kwargs):
+        if AUTH_DISABLED:
+            return f(*args, **kwargs)
         if "user_email" not in session:
             flash("Please log in to continue.", "info")
             return redirect(url_for("login", next=request.path))
@@ -94,14 +103,14 @@ def require_auth(f):
 
 @app.route("/")
 def index():
-    return redirect(
-        url_for("dashboard") if "user_email" in session else url_for("login")
-    )
+    if AUTH_DISABLED or "user_email" in session:
+        return redirect(url_for("dashboard"))
+    return redirect(url_for("login"))
 
 
 @app.route("/login", methods=["GET", "POST"])
 def login():
-    if "user_email" in session:
+    if AUTH_DISABLED or "user_email" in session:
         return redirect(url_for("dashboard"))
 
     if request.method == "POST":
@@ -133,6 +142,8 @@ def login():
 
 @app.route("/logout", methods=["POST"])
 def logout():
+    if AUTH_DISABLED:
+        return redirect(url_for("dashboard"))
     try:
         if _supabase_base and "access_token" in session:
             _supabase_base.auth.sign_out()

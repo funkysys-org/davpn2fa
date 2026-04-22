@@ -86,6 +86,7 @@ EASYRSA_CERT_EXPIRE     825                 User certificate lifetime (days)
 WEBAPP_PORT             8080                Host port for the web UI
 FLASK_SECRET_KEY        change-me-in-prod   Flask session signing key
 FLASK_DEBUG             0                   Set to 1 for development only
+AUTH_DISABLED           0                   Set to 1 to bypass login (trusted networks only)
 SUPABASE_URL            (empty)             Supabase project URL
 SUPABASE_ANON_KEY       (empty)             Supabase anon key
 
@@ -149,6 +150,22 @@ Apply it via the Supabase dashboard SQL editor or the Supabase CLI.
 Create admin accounts through the Supabase Authentication dashboard.
 
 
+UNAUTHENTICATED ACCESS (AUTH_DISABLED)
+--------------------------------------
+Set AUTH_DISABLED=1 in .env to skip the login screen entirely. This is
+appropriate when the web UI is accessible only from a trusted internal network
+or behind a reverse proxy/firewall that enforces its own access controls.
+
+When AUTH_DISABLED=1:
+  - No login page is shown; all routes are immediately accessible.
+  - The sidebar displays an "Auth disabled" badge as a visual reminder.
+  - The sign-out button is hidden.
+  - Audit log entries (if Supabase is configured) are written with the
+    admin email set to "unknown".
+
+NEVER set AUTH_DISABLED=1 on a host that is publicly reachable.
+
+
 SECURITY NOTES
 --------------
   - The openvpn container requires NET_ADMIN and NET_RAW capabilities and
@@ -158,8 +175,8 @@ SECURITY NOTES
   - Rotate user certificates before EASYRSA_CERT_EXPIRE days elapse.
   - The web UI has no rate limiting by default; place it behind a reverse
     proxy (nginx, Caddy) with TLS and access controls in production.
-  - Without Supabase, the web UI has no authentication — restrict access by
-    network/firewall rules if running without it.
+  - Without Supabase and without AUTH_DISABLED, the web UI has no
+    authentication — restrict access by network/firewall rules.
 
 
 STOPPING AND REMOVING

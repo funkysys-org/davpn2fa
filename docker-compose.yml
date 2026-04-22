@@ -67,6 +67,8 @@ services:
       - OPENVPN_DATA_DIR=/etc/openvpn/data
       # Enable Flask debug (set to 1 for development only)
       - FLASK_DEBUG=${FLASK_DEBUG:-0}
+      # Disable auth for trusted private network deployments (behind reverse proxy/firewall)
+      - AUTH_DISABLED=${AUTH_DISABLED:-0}
     depends_on:
       - openvpn
     logging:
