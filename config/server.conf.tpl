@@ -25,6 +25,7 @@ tls-cipher TLS-ECDHE-RSA-WITH-AES-256-GCM-SHA384
 
 # Dual-factor: valid certificate AND TOTP password both required
 verify-client-cert require
+username-as-common-name
 plugin OPENVPN_PAM_PLUGIN openvpn
 
 persist-key

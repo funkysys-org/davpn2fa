@@ -187,13 +187,12 @@ def get_connected_clients():
 
 
 def get_client_profile(username):
+    if not os.path.exists(f"{PKI_DIR}/issued/{username}.crt"):
+        return None
+    _build_client_profile(username)
     profile_path = f"{DATA_DIR}/clients/{username}.ovpn"
     if os.path.exists(profile_path):
         return Path(profile_path).read_text()
-    if os.path.exists(f"{PKI_DIR}/issued/{username}.crt"):
-        _build_client_profile(username)
-        if os.path.exists(profile_path):
-            return Path(profile_path).read_text()
     return None
 
 
@@ -248,8 +247,7 @@ def _build_client_profile(username, server_ip=None):
     ta = Path(f"{PKI_DIR}/ta.key").read_text().strip()
 
     has_totp = os.path.exists(f"{DATA_DIR}/users/{username}/.google_authenticator")
-    totp_comment = "# Password prompt = current 6-digit Google Authenticator code\n" if has_totp else "# Certificate-only auth — no password prompt\n"
-    auth_user_pass = "auth-user-pass\n" if has_totp else ""
+    totp_comment = "# Password prompt = current 6-digit Google Authenticator code\n" if has_totp else "# No TOTP configured — enter any value when prompted for a password\n"
 
     profile = (
         f"# OpenVPN client profile for: {username}\n"
@@ -260,7 +258,7 @@ def _build_client_profile(username, server_ip=None):
         f"resolv-retry infinite\nnobind\npersist-key\npersist-tun\n\n"
         f"remote-cert-tls server\nverify-x509-name server name\n\n"
         f"cipher AES-256-GCM\nauth SHA256\ntls-version-min 1.2\n\n"
-        f"{auth_user_pass}key-direction 1\nverb 3\n\n"
+        f"auth-user-pass\nauth-nocache\nkey-direction 1\nverb 3\n\n"
         f"<ca>\n{ca}\n</ca>\n\n"
         f"<cert>\n{cert}\n</cert>\n\n"
         f"<key>\n{key}\n</key>\n\n"
