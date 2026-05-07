@@ -31,6 +31,7 @@ services:
       - OPENVPN_PROTO=${OPENVPN_PROTO:-udp}
       - OPENVPN_DNS1=${OPENVPN_DNS1:-1.1.1.1}
       - OPENVPN_DNS2=${OPENVPN_DNS2:-8.8.8.8}
+      - OPENVPN_STATIC_ROUTES=${OPENVPN_STATIC_ROUTES:-}
       - EASYRSA_KEY_SIZE=${EASYRSA_KEY_SIZE:-4096}
       - EASYRSA_CA_EXPIRE=${EASYRSA_CA_EXPIRE:-3650}
       - EASYRSA_CERT_EXPIRE=${EASYRSA_CERT_EXPIRE:-825}
@@ -68,7 +69,7 @@ services:
       # Enable Flask debug (set to 1 for development only)
       - FLASK_DEBUG=${FLASK_DEBUG:-0}
       # Disable auth for trusted private network deployments (behind reverse proxy/firewall)
-      - AUTH_DISABLED=${AUTH_DISABLED:-0}
+      - AUTH_DISABLED=${AUTH_DISABLED:-1}
     depends_on:
       - openvpn
     logging:

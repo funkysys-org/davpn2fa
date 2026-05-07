@@ -32,6 +32,52 @@ if [[ ! -f "$SERVER_CONF" ]]; then
     sed -i "s|OPENVPN_DNS1|${OPENVPN_DNS1:-1.1.1.1}|g"       "$SERVER_CONF"
     sed -i "s|OPENVPN_DNS2|${OPENVPN_DNS2:-8.8.8.8}|g"       "$SERVER_CONF"
     sed -i "s|OPENVPN_PAM_PLUGIN|$PLUGIN_PATH|g"              "$SERVER_CONF"
+
+    # Handle static routes if provided
+    if [[ -n "${OPENVPN_STATIC_ROUTES:-}" ]]; then
+        info "Configuring static routes..."
+        ROUTES_CONF=$(mktemp)
+
+        # Convert CIDR notation to OpenVPN route format and build sed commands
+        IFS=',' read -ra ROUTE_LIST <<< "$OPENVPN_STATIC_ROUTES"
+        for route in "${ROUTE_LIST[@]}"; do
+            route=$(echo "$route" | xargs)  # trim whitespace
+            if [[ -z "$route" ]]; then continue; fi
+
+            # Convert CIDR to netmask using native bash (works with common masks)
+            if [[ "$route" =~ ^([0-9.]+)/([0-9]+)$ ]]; then
+                network="${BASH_REMATCH[1]}"
+                cidr="${BASH_REMATCH[2]}"
+
+                # Convert CIDR to netmask (limited to common values)
+                case "$cidr" in
+                    8)  netmask="255.0.0.0" ;;
+                    16) netmask="255.255.0.0" ;;
+                    24) netmask="255.255.255.0" ;;
+                    25) netmask="255.255.255.128" ;;
+                    26) netmask="255.255.255.192" ;;
+                    27) netmask="255.255.255.224" ;;
+                    28) netmask="255.255.255.240" ;;
+                    29) netmask="255.255.255.248" ;;
+                    30) netmask="255.255.255.252" ;;
+                    31) netmask="255.255.255.254" ;;
+                    32) netmask="255.255.255.255" ;;
+                    *)  info "Skipping route $route: unsupported CIDR /$cidr"; continue ;;
+                esac
+
+                echo "push \"route $network $netmask\"" >> "$ROUTES_CONF"
+                info "Added route: $network $netmask"
+            else
+                info "Skipping invalid CIDR: $route"
+            fi
+        done
+
+        # Insert routes before redirect-gateway line
+        if [[ -s "$ROUTES_CONF" ]]; then
+            sed -i "/^push \"redirect-gateway/r $ROUTES_CONF" "$SERVER_CONF"
+        fi
+        rm -f "$ROUTES_CONF"
+    fi
 fi
 
 # Ensure CRL exists
