@@ -47,11 +47,12 @@ QUICK START
 
    To enable authenticated login and audit logging, also set:
 
+       AUTH_DISABLED=0     Required to activate login enforcement
        SUPABASE_URL        Your Supabase project URL
        SUPABASE_ANON_KEY   Your Supabase anon/public key
 
-   Without Supabase, the web UI accepts any email and skips authentication
-   (development/testing only — not suitable for production).
+   By default AUTH_DISABLED=1, so the web UI is accessible without login.
+   This is safe only on trusted/private networks.
 
 3. Build and start the stack:
 
@@ -80,15 +81,39 @@ OPENVPN_NETWORK         10.8.0.0            VPN subnet
 OPENVPN_NETMASK         255.255.255.0       VPN subnet mask
 OPENVPN_DNS1            1.1.1.1             Primary DNS pushed to clients
 OPENVPN_DNS2            8.8.8.8             Secondary DNS pushed to clients
+OPENVPN_STATIC_ROUTES   (empty)             Comma-separated CIDR networks for
+                                            static VPN routing (see below)
 EASYRSA_KEY_SIZE        4096                RSA key size for PKI
 EASYRSA_CA_EXPIRE       3650                CA certificate lifetime (days)
 EASYRSA_CERT_EXPIRE     825                 User certificate lifetime (days)
 WEBAPP_PORT             8080                Host port for the web UI
 FLASK_SECRET_KEY        change-me-in-prod   Flask session signing key
 FLASK_DEBUG             0                   Set to 1 for development only
-AUTH_DISABLED           0                   Set to 1 to bypass login (trusted networks only)
+AUTH_DISABLED           1                   Set to 0 to require login via Supabase
 SUPABASE_URL            (empty)             Supabase project URL
 SUPABASE_ANON_KEY       (empty)             Supabase anon key
+
+
+STATIC ROUTES (OPENVPN_STATIC_ROUTES)
+-------------------------------------
+By default, all client traffic is routed through the VPN (redirect-gateway).
+If you only need specific networks to be reachable over the VPN while the
+rest of the client's traffic uses their normal internet connection, set
+OPENVPN_STATIC_ROUTES to a comma-separated list of CIDR networks.
+
+Example — route only two networks through the VPN:
+
+    OPENVPN_STATIC_ROUTES=80.50.43.0/24,192.168.1.0/24
+
+This adds "push route" directives to the OpenVPN server config for each
+network. Supported CIDR prefixes: /8, /16, /24, /25, /26, /27, /28, /29,
+/30, /31, /32. Invalid or unsupported entries are skipped with a warning
+in the container log.
+
+When OPENVPN_STATIC_ROUTES is empty (the default), the VPN continues to
+route all traffic as usual. The redirect-gateway directive is always present
+in the server config; clients that receive specific route pushes will use
+the VPN for those networks while other traffic follows the default gateway.
 
 
 MANAGING VPN USERS
@@ -152,9 +177,12 @@ Create admin accounts through the Supabase Authentication dashboard.
 
 UNAUTHENTICATED ACCESS (AUTH_DISABLED)
 --------------------------------------
-Set AUTH_DISABLED=1 in .env to skip the login screen entirely. This is
-appropriate when the web UI is accessible only from a trusted internal network
-or behind a reverse proxy/firewall that enforces its own access controls.
+By default, AUTH_DISABLED=1 and the web UI skips the login screen entirely.
+This is appropriate when the web UI is accessible only from a trusted internal
+network or behind a reverse proxy/firewall that enforces its own access controls.
+
+To require authenticated login, set AUTH_DISABLED=0 and configure Supabase
+(see SUPABASE SETUP below).
 
 When AUTH_DISABLED=1:
   - No login page is shown; all routes are immediately accessible.
@@ -163,7 +191,7 @@ When AUTH_DISABLED=1:
   - Audit log entries (if Supabase is configured) are written with the
     admin email set to "unknown".
 
-NEVER set AUTH_DISABLED=1 on a host that is publicly reachable.
+NEVER leave AUTH_DISABLED=1 on a host that is publicly reachable.
 
 
 SECURITY NOTES
@@ -175,8 +203,9 @@ SECURITY NOTES
   - Rotate user certificates before EASYRSA_CERT_EXPIRE days elapse.
   - The web UI has no rate limiting by default; place it behind a reverse
     proxy (nginx, Caddy) with TLS and access controls in production.
-  - Without Supabase and without AUTH_DISABLED, the web UI has no
-    authentication — restrict access by network/firewall rules.
+  - By default AUTH_DISABLED=1, meaning the web UI has no authentication.
+    Set AUTH_DISABLED=0 and configure Supabase for production use, or
+    restrict access by network/firewall rules.
 
 
 STOPPING AND REMOVING
