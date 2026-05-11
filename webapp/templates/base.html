@@ -21,11 +21,39 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   <style>
     [x-cloak] { display: none !important; }
-    .sidebar-link { @apply flex items-center gap-3 px-3 py-2.5 rounded-lg text-slate-300 hover:text-white hover:bg-slate-700/80 transition-all duration-150 text-sm font-medium; }
-    .sidebar-link svg { @apply text-slate-400; }
-    .sidebar-link:hover svg { @apply text-slate-200; }
-    .sidebar-link.active { @apply text-white bg-blue-600; }
-    .sidebar-link.active svg { @apply text-white; }
+    .sidebar-link {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      padding: 0.625rem 0.75rem;
+      border-radius: 0.5rem;
+      color: #cbd5e1;
+      transition: all 150ms;
+      font-size: 0.875rem;
+      font-weight: 500;
+      text-decoration: none;
+    }
+    .sidebar-link svg {
+      width: 1.25rem;
+      height: 1.25rem;
+      color: #94a3b8;
+      stroke: currentColor;
+      stroke-width: 2;
+    }
+    .sidebar-link:hover {
+      color: #ffffff;
+      background-color: rgba(51, 65, 85, 0.8);
+    }
+    .sidebar-link:hover svg {
+      color: #cbd5e1;
+    }
+    .sidebar-link.active {
+      color: #ffffff;
+      background-color: #2563eb;
+    }
+    .sidebar-link.active svg {
+      color: #ffffff;
+    }
   </style>
 </head>
 <body class="h-full bg-slate-50 font-sans antialiased">
