@@ -35,7 +35,7 @@ if [[ ! -f "$SERVER_CONF" ]]; then
 
     # Handle static routes if provided
     if [[ -n "${OPENVPN_STATIC_ROUTES:-}" ]]; then
-        info "Configuring static routes..."
+        info "Configuring static routes (split-tunnel mode)..."
         ROUTES_CONF=$(mktemp)
 
         # Convert CIDR notation to OpenVPN route format and build sed commands
@@ -75,6 +75,12 @@ if [[ ! -f "$SERVER_CONF" ]]; then
         # Insert routes before redirect-gateway line
         if [[ -s "$ROUTES_CONF" ]]; then
             sed -i "/^push \"redirect-gateway/r $ROUTES_CONF" "$SERVER_CONF"
+            # Split-tunnel: with explicit routes pushed, clients should NOT
+            # send all traffic through the VPN. Remove redirect-gateway so
+            # only the listed networks use the tunnel; everything else
+            # follows the client's own default gateway.
+            sed -i '/^push "redirect-gateway/d' "$SERVER_CONF"
+            info "Split-tunnel active: redirect-gateway removed — only listed routes use the VPN."
         fi
         rm -f "$ROUTES_CONF"
     fi

@@ -16,6 +16,8 @@ from flask import (
     url_for,
 )
 
+import hmac
+
 from lib.vpn import (
     add_user,
     get_client_profile,
@@ -27,26 +29,70 @@ from lib.vpn import (
     pki_initialized,
     revoke_user,
 )
+from lib import audit
 
 app = Flask(__name__)
-app.secret_key = os.environ.get("FLASK_SECRET_KEY", os.urandom(32))
 
 AUTH_DISABLED = os.environ.get("AUTH_DISABLED", "0") == "1"
 app.config["AUTH_DISABLED"] = AUTH_DISABLED
 
-SUPABASE_URL = os.environ.get("SUPABASE_URL", "")
-SUPABASE_ANON_KEY = os.environ.get("SUPABASE_ANON_KEY", "")
-_supabase_base = None
+# ── Local admin credentials (replaces the former Supabase auth) ─────────────
+# ADMIN_EMAIL: any identifier for the single admin account (email-like or
+#              a plain name — it is only used as a label + login id).
+# ADMIN_PASSWORD_HASH: Werkzeug `generate_password_hash` output (scrypt).
+#              Generate with:
+#                python -c "from werkzeug.security import generate_password_hash as g; print(g('YOUR-PASSWORD'))"
+# API_TOKEN:   bearer token for /api/v1 (constant-time compared).
+#              Generate with: python -c "import secrets; print(secrets.token_hex(32))"
+ADMIN_EMAIL = os.environ.get("ADMIN_EMAIL", "admin")
+ADMIN_PASSWORD_HASH = os.environ.get("ADMIN_PASSWORD_HASH", "")
+API_TOKEN = os.environ.get("API_TOKEN", "")
+app.config["API_TOKEN"] = API_TOKEN
 
-if SUPABASE_URL and SUPABASE_ANON_KEY:
-    try:
-        from supabase import create_client
+if not AUTH_DISABLED:
+    missing = [
+        name
+        for name, val in (
+            ("ADMIN_PASSWORD_HASH", ADMIN_PASSWORD_HASH),
+            ("API_TOKEN", API_TOKEN),
+        )
+        if not val
+    ]
+    if missing:
+        raise RuntimeError(
+            "Authentication is enabled (AUTH_DISABLED=0) but not configured: "
+            f"missing {', '.join(missing)}. Set them in .env, or — ONLY if "
+            "the UI is unreachable from untrusted networks — set "
+            "AUTH_DISABLED=1."
+        )
 
-        _supabase_base = create_client(SUPABASE_URL, SUPABASE_ANON_KEY)
-    except Exception:
-        pass
+app.secret_key = os.environ.get("FLASK_SECRET_KEY", "")
+_WEAK_SECRET = (
+    not app.secret_key
+    or app.secret_key in ("change-me-in-production", "change-me-in-prod")
+    or len(app.secret_key) < 32
+)
+if _WEAK_SECRET:
+    if AUTH_DISABLED:
+        # Trusted-network mode: the session key only signs flash messages,
+        # so fall back to an ephemeral key with a loud warning (sessions
+        # will not survive restarts).
+        import secrets as _secrets
 
-app.config["SUPABASE_BASE"] = _supabase_base
+        app.logger.warning(
+            "FLASK_SECRET_KEY is empty/weak/known — generating an ephemeral "
+            "key. Sessions will not survive restarts; set a strong key "
+            '(python -c "import secrets; print(secrets.token_hex(32))").'
+        )
+        app.secret_key = _secrets.token_urlsafe(48)
+    else:
+        # Sessions ARE the admin credential when auth is on — a weak or
+        # missing key makes them forgeable. Refuse to boot.
+        raise RuntimeError(
+            "FLASK_SECRET_KEY is missing, weak, or a known default — with "
+            "auth enabled this makes admin sessions forgeable. Generate "
+            'one with: python -c "import secrets; print(secrets.token_hex(32))"'
+        )
 
 from flasgger import Swagger  # noqa: E402
 from api import api as api_blueprint  # noqa: E402
@@ -71,7 +117,7 @@ Swagger(app, config={
         "title": "OpenVPN Manager API",
         "description": (
             "REST API for the OpenVPN 2FA management webapp.\n\n"
-            "**Authentication:** include a Supabase JWT as `Authorization: Bearer <token>`. "
+            "**Authentication:** include the API token as `Authorization: Bearer <API_TOKEN>`. "
             "When `AUTH_DISABLED=1` the header is not required."
         ),
         "version": "1.0.0",
@@ -82,7 +128,7 @@ Swagger(app, config={
             "type": "apiKey",
             "name": "Authorization",
             "in": "header",
-            "description": "Supabase JWT — format: `Bearer <token>`",
+            "description": "Static API token — format: `Bearer <token>`",
         }
     },
     "security": [{"Bearer": []}],
@@ -96,38 +142,13 @@ def inject_globals():
     return {"auth_disabled": AUTH_DISABLED}
 
 
-def _get_authed_client():
-    if not _supabase_base:
-        return None
-    if "access_token" not in session:
-        return _supabase_base
-    try:
-        from supabase import create_client
-
-        client = create_client(SUPABASE_URL, SUPABASE_ANON_KEY)
-        client.auth.set_session(
-            session["access_token"], session.get("refresh_token", "")
-        )
-        return client
-    except Exception:
-        return _supabase_base
-
-
 def _log(action, target_user=None, details=None):
-    client = _get_authed_client()
-    if not client:
-        return
-    try:
-        client.table("audit_log").insert(
-            {
-                "admin_email": session.get("user_email", "unknown"),
-                "action": action,
-                "target_user": target_user,
-                "details": details or {},
-            }
-        ).execute()
-    except Exception:
-        pass
+    audit.log_event(
+        action,
+        target_user=target_user,
+        details=details,
+        admin_email=session.get("user_email", "unknown"),
+    )
 
 
 def require_auth(f):
@@ -162,25 +183,24 @@ def login():
         email = request.form.get("email", "").strip()
         password = request.form.get("password", "")
 
-        if not _supabase_base:
-            session["user_email"] = email or "admin"
-            flash(
-                "Supabase not configured — authentication is disabled. "
-                "Set SUPABASE_URL and SUPABASE_ANON_KEY for secure login.",
-                "warning",
-            )
-            return redirect(url_for("dashboard"))
+        from werkzeug.security import check_password_hash
 
         try:
-            resp = _supabase_base.auth.sign_in_with_password(
-                {"email": email, "password": password}
-            )
-            session["user_email"] = email
-            session["access_token"] = resp.session.access_token
-            session["refresh_token"] = resp.session.refresh_token
-            return redirect(request.args.get("next") or url_for("dashboard"))
+            password_ok = check_password_hash(ADMIN_PASSWORD_HASH, password)
         except Exception:
-            flash("Invalid email or password.", "error")
+            password_ok = False
+        if (
+            hmac.compare_digest(email, ADMIN_EMAIL)
+            and password_ok
+        ):
+            session["user_email"] = ADMIN_EMAIL
+            next_url = request.args.get("next") or url_for("dashboard")
+            if not next_url.startswith("/"):
+                # Only allow relative redirects — prevent open redirect
+                # (e.g. ?next=https://evil.com phishing admins post-login).
+                next_url = url_for("dashboard")
+            return redirect(next_url)
+        flash("Invalid email or password.", "error")
 
     return render_template("login.html")
 
@@ -189,11 +209,6 @@ def login():
 def logout():
     if AUTH_DISABLED:
         return redirect(url_for("dashboard"))
-    try:
-        if _supabase_base and "access_token" in session:
-            _supabase_base.auth.sign_out()
-    except Exception:
-        pass
     session.clear()
     return redirect(url_for("login"))
 
@@ -214,20 +229,7 @@ def dashboard():
         "expired": sum(1 for u in users if u["cert_status"] == "expired"),
         "connected": len(connected),
     }
-    recent_actions = []
-    client = _get_authed_client()
-    if client:
-        try:
-            result = (
-                client.table("audit_log")
-                .select("*")
-                .order("created_at", desc=True)
-                .limit(10)
-                .execute()
-            )
-            recent_actions = result.data or []
-        except Exception:
-            pass
+    recent_actions = audit.recent_events(limit=10)
 
     return render_template(
         "dashboard.html",

@@ -13,7 +13,6 @@ services:
     cap_add:
       - NET_ADMIN
       - NET_RAW
-      - SYS_MODULE
     sysctls:
       net.ipv4.ip_forward: "1"
       net.ipv6.conf.all.forwarding: "1"
@@ -50,26 +49,33 @@ services:
     container_name: openvpn-webapp
     restart: unless-stopped
     ports:
-      - "${WEBAPP_PORT:-8080}:5000"
+      # Bound to loopback by default: the admin UI must not be directly
+      # exposed. Front it with a TLS reverse proxy (nginx/Caddy) with its
+      # own access controls, or override deliberately for trusted LANs.
+      - "127.0.0.1:${WEBAPP_PORT:-8080}:5000"
     volumes:
       # Shared PKI + user data volume — must match the openvpn service
       - openvpn-data:/etc/openvpn/data
     environment:
-      # Supabase (for admin auth + audit log)
-      - SUPABASE_URL=${SUPABASE_URL:-}
-      - SUPABASE_ANON_KEY=${SUPABASE_ANON_KEY:-}
-      # Flask session signing key — generate with: python -c "import secrets; print(secrets.token_hex(32))"
-      - FLASK_SECRET_KEY=${FLASK_SECRET_KEY:-change-me-in-production}
+      # ─── Admin authentication (local — replaces the former Supabase auth) ──
+      # Single admin account. Generate the hash and tokens with:
+      #   ADMIN_PASSWORD_HASH: python -c "from werkzeug.security import generate_password_hash as g; print(g('YOUR-PASSWORD'))"
+      #   API_TOKEN:            python -c "import secrets; print(secrets.token_hex(32))"
+      #   FLASK_SECRET_KEY:     python -c "import secrets; print(secrets.token_hex(32))"
+      - ADMIN_EMAIL=${ADMIN_EMAIL:-admin}
+      - ADMIN_PASSWORD_HASH=${ADMIN_PASSWORD_HASH:-}
+      - API_TOKEN=${API_TOKEN:-}
+      - FLASK_SECRET_KEY=${FLASK_SECRET_KEY:-}
+      # Auth is ON by default. Set AUTH_DISABLED=1 ONLY if the UI is
+      # unreachable from untrusted networks.
+      - AUTH_DISABLED=${AUTH_DISABLED:-0}
+      - FLASK_DEBUG=${FLASK_DEBUG:-0}
       # Passed through to .ovpn profile builder
       - OPENVPN_SERVER_IP=${OPENVPN_SERVER_IP:-}
       - OPENVPN_PORT=${OPENVPN_PORT:-1194}
       - OPENVPN_PROTO=${OPENVPN_PROTO:-udp}
       - EASYRSA_CERT_EXPIRE=${EASYRSA_CERT_EXPIRE:-825}
       - OPENVPN_DATA_DIR=/etc/openvpn/data
-      # Enable Flask debug (set to 1 for development only)
-      - FLASK_DEBUG=${FLASK_DEBUG:-0}
-      # Disable auth for trusted private network deployments (behind reverse proxy/firewall)
-      - AUTH_DISABLED=${AUTH_DISABLED:-1}
     depends_on:
       - openvpn
     logging:

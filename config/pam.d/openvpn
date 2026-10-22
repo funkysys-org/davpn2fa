@@ -1,13 +1,35 @@
-# PAM: validate Google Authenticator TOTP when the user has a secret file.
-# Users without a .google_authenticator file (nullok) pass through without a password.
-# Secret stored per-user at: /etc/openvpn/data/users/<USER>/.google_authenticator
-auth sufficient pam_google_authenticator.so \
+# PAM: enforce Google Authenticator TOTP for OpenVPN 2FA (cert + TOTP).
+#
+# Security-critical stack. The previous shipped config stacked
+# pam_google_authenticator as `sufficient` followed by pam_permit — ANY
+# wrong TOTP code (or none) fell through to pam_permit and authenticated,
+# silently reducing the "2FA" to a single factor. This stack enforces:
+#
+#   1. vpn-pam-helper check-username — VPN usernames come from certificate
+#      CNs and are NOT system users. Empty/invalid/traversal-looking
+#      names are denied here (success=bad).
+#   2. vpn-pam-helper has-secret — users created with require_totp=false
+#      (no secret file) are allowed immediately (success=done): their
+#      client certificate already authenticated them at the TLS layer.
+#   3. pam_google_authenticator REQUIRED — everyone else (users WITH a
+#      TOTP secret) must present a valid code. NO pam_permit fallback.
+#      nullok is deliberately ABSENT: a user reaching this line without a
+#      readable secret file fails closed.
+#
+# `user=root` + `no_strict_owner` reflect the container deployment: the
+# openvpn-plugin-auth-pam runs as root and VPN usernames have no passwd
+# entries — without user= the module's getpwnam_r() lookup fails for every
+# VPN user (which is how the TOTP check was silently dead before, masked
+# by the pam_permit fallback).
+#
+# Exit-code contracts of vpn-pam-helper are documented in
+# scripts/vpn-pam-helper.sh; the data dir path is hardcoded in BOTH files.
+auth [success=bad default=ignore] pam_exec.so quiet /usr/local/bin/vpn-pam-helper check-username
+auth [success=done default=ignore] pam_exec.so quiet /usr/local/bin/vpn-pam-helper has-secret
+auth required pam_google_authenticator.so \
     secret=/etc/openvpn/data/users/${USER}/.google_authenticator \
-    nullok \
+    user=root \
+    no_strict_owner \
     noskewadj \
     no_increment_hotp
-
-# Allow users who have no TOTP secret (certificate-only auth).
-auth sufficient pam_permit.so
-
 account required pam_permit.so

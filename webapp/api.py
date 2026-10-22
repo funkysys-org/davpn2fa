@@ -29,8 +29,8 @@ def _auth_disabled():
     return current_app.config.get("AUTH_DISABLED", False)
 
 
-def _supabase():
-    return current_app.config.get("SUPABASE_BASE")
+def _api_token():
+    return current_app.config.get("API_TOKEN", "")
 
 
 def _api_error(message, status=400):
@@ -49,37 +49,38 @@ def require_api_auth(f):
             return _api_error("Missing or invalid Authorization header", 401)
 
         token = auth_header[len("Bearer "):]
-        sb = _supabase()
-        if not sb:
-            g.api_user = "api-user"
-            return f(*args, **kwargs)
+        expected = _api_token()
+        if not expected:
+            # Fail CLOSED: no API token configured in auth-enabled mode is
+            # a boot-time configuration error (app.py refuses to start) —
+            # never let the API silently fall back to accepting arbitrary
+            # tokens.
+            return _api_error(
+                "Auth is enabled but the API token is not configured — "
+                "refusing to authenticate. Check API_TOKEN.",
+                503,
+            )
 
-        try:
-            user_resp = sb.auth.get_user(token)
-            g.api_user = user_resp.user.email
-        except Exception:
+        import hmac as _hmac
+
+        if not _hmac.compare_digest(token, expected):
             return _api_error("Invalid or expired token", 401)
 
+        g.api_user = "api-token"
         return f(*args, **kwargs)
 
     return decorated
 
 
 def _log(action, target_user=None, details=None):
-    sb = _supabase()
-    if not sb:
-        return
-    try:
-        sb.table("audit_log").insert(
-            {
-                "admin_email": getattr(g, "api_user", "api"),
-                "action": action,
-                "target_user": target_user,
-                "details": details or {},
-            }
-        ).execute()
-    except Exception:
-        pass
+    from lib import audit
+
+    audit.log_event(
+        action,
+        target_user=target_user,
+        details=details,
+        admin_email=getattr(g, "api_user", "api"),
+    )
 
 
 # ---------------------------------------------------------------------------

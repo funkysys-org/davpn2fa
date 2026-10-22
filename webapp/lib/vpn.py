@@ -69,8 +69,14 @@ def add_user(username, server_ip=None, require_totp=True):
             f"User '{username}' already exists. Revoke the existing certificate first."
         )
 
+    # The user dir is created ONLY when TOTP is enabled. The PAM helper
+    # (scripts/vpn-pam-helper.sh, has-secret mode) uses this invariant:
+    #   dir ABSENT                     -> cert-only user -> allow (TLS-only)
+    #   dir present + secret present   -> TOTP user       -> GA required
+    #   dir present + secret MISSING   -> damaged state   -> deny (fail closed)
     user_dir = f"{DATA_DIR}/users/{username}"
-    os.makedirs(user_dir, mode=0o700, exist_ok=True)
+    if require_totp:
+        os.makedirs(user_dir, mode=0o700, exist_ok=True)
     env = _easyrsa_env()
 
     subprocess.run(
@@ -230,8 +236,14 @@ def get_user_cert_info(username):
 
 
 def _build_client_profile(username, server_ip=None):
+    server_ip = server_ip or os.environ.get("OPENVPN_SERVER_IP", "")
     if not server_ip:
-        server_ip = os.environ.get("OPENVPN_SERVER_IP", "YOUR_SERVER_IP")
+        # Refuse to emit a silently-broken profile: an .ovpn pointing at
+        # "YOUR_SERVER_IP" connects to nothing and confuses the user.
+        raise ValueError(
+            "No server IP available for the client profile. Set "
+            "OPENVPN_SERVER_IP or pass server_ip explicitly."
+        )
     port = os.environ.get("OPENVPN_PORT", "1194")
     proto = os.environ.get("OPENVPN_PROTO", "udp")
 

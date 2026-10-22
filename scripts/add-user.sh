@@ -54,7 +54,11 @@ fi
 
 # Detect server IP
 if [[ -z "$SERVER_IP" ]]; then
-    SERVER_IP=$(curl -sf --max-time 5 https://api.ipify.org 2>/dev/null || echo "YOUR_SERVER_IP")
+    info "OPENVPN_SERVER_IP not set — auto-detecting public IP via api.ipify.org (outbound query)"
+    SERVER_IP=$(curl -sf --max-time 5 https://api.ipify.org 2>/dev/null || echo "")
+    if [[ -z "$SERVER_IP" ]]; then
+        die "Could not detect server IP. Set OPENVPN_SERVER_IP and retry."
+    fi
 fi
 
 # Build .ovpn

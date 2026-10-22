@@ -35,13 +35,15 @@ COPY scripts/add-user.sh    /usr/local/bin/add-user
 COPY scripts/revoke-user.sh /usr/local/bin/revoke-user
 COPY scripts/list-users.sh  /usr/local/bin/list-users
 COPY scripts/show-qr.sh     /usr/local/bin/show-qr
+COPY scripts/vpn-pam-helper.sh /usr/local/bin/vpn-pam-helper
 
 RUN chmod +x /entrypoint.sh \
     /usr/local/bin/init-pki \
     /usr/local/bin/add-user \
     /usr/local/bin/revoke-user \
     /usr/local/bin/list-users \
-    /usr/local/bin/show-qr
+    /usr/local/bin/show-qr \
+    /usr/local/bin/vpn-pam-helper
 
 VOLUME ["/etc/openvpn/data"]
 EXPOSE 1194/udp
