@@ -189,15 +189,26 @@ def login():
             password_ok = check_password_hash(ADMIN_PASSWORD_HASH, password)
         except Exception:
             password_ok = False
-        if (
-            hmac.compare_digest(email, ADMIN_EMAIL)
-            and password_ok
-        ):
+        try:
+            email_ok = hmac.compare_digest(
+                email.encode("utf-8", "surrogatepass"),
+                ADMIN_EMAIL.encode("utf-8", "surrogatepass"),
+            )
+        except Exception:
+            email_ok = False
+        if email_ok and password_ok:
             session["user_email"] = ADMIN_EMAIL
+            audit.log_event("login_success", admin_email=ADMIN_EMAIL)
             next_url = request.args.get("next") or url_for("dashboard")
-            if not next_url.startswith("/"):
-                # Only allow relative redirects — prevent open redirect
-                # (e.g. ?next=https://evil.com phishing admins post-login).
+            if (
+                not next_url.startswith("/")
+                or next_url.startswith("//")
+                or next_url.startswith("/\\")
+                or ":" in next_url.split("?", 1)[0].split("#", 1)[0]
+            ):
+                # Only allow same-site relative redirects. Rejects absolute
+                # (https://evil.com), protocol-relative (//evil.com), and
+                # backslash tricks (/\evil.com) — open-redirect phishing.
                 next_url = url_for("dashboard")
             return redirect(next_url)
         flash("Invalid email or password.", "error")

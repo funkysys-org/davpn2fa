@@ -7,9 +7,9 @@ This project runs a self-hosted OpenVPN server with mandatory two-factor
 authentication (client certificate + Google Authenticator TOTP) alongside a
 Flask-based web management UI. Administrators can create and revoke VPN users,
 download .ovpn profiles, and scan TOTP QR codes — all from a browser.
-Administrative actions (logins, user additions, revocations, profile
-downloads) are recorded to a local SQLite audit log stored on the same
-volume as the PKI.
+Administrative actions (successful logins, user additions, revocations,
+profile downloads, QR views) are recorded to a local SQLite audit log
+stored on the same volume as the PKI.
 
 TOTP ENFORCEMENT (IMPORTANT)
 ----------------------------

@@ -186,6 +186,58 @@ if b_ok:
     loc = r.headers.get("Location", "")
     check("open redirect neutralized (evil next -> dashboard)",
           "evil.com" not in loc and loc.endswith("/dashboard"), f"(Location={loc})")
+    for evil_next in ("//evil.com", "//evil.com:8080/x", "/\\evil.com"):
+        r = client.post(f"/login?next={evil_next}",
+                        data={"email": "admin@example.com",
+                              "password": "correct-horse"},
+                        follow_redirects=False)
+        loc = r.headers.get("Location", "")
+        check(f"open redirect neutralized ({evil_next})",
+              "evil.com" not in loc and loc.endswith("/dashboard"),
+              f"(Location={loc})")
+
+    # non-ASCII credentials must not 500 (compare_digest TypeError guard)
+    # NOTE: fresh client — the probes above left this client logged in,
+    # and login() short-circuits to a 302 for an authenticated session.
+    fresh = appmod.app.test_client()
+    r = fresh.post("/login", data={"email": "àdmin@example.com",
+                                   "password": "correct-horse"},
+                   follow_redirects=False)
+    check("non-ASCII login handled without 500",
+          r.status_code == 200, f"(status={r.status_code})")
+
+    # CLI-invariant probe: add-user.sh --no-totp must NOT create the user dir
+    print("[4b] CLI add-user --no-totp honors the PAM dir invariant")
+    env = os.environ.copy()
+    env["OPENVPN_DATA_DIR"] = tempfile.mkdtemp(prefix="davpn2fa-cli-")
+    # simulate the script's guard without easyrsa: extract the mkdir block
+    # by running the script in a dry-run mode (bash with stubbed easyrsa)
+    stub_dir = tempfile.mkdtemp(prefix="davpn2fa-stub-")
+    stub_easyrsa = os.path.join(stub_dir, "easyrsa")
+    open(stub_easyrsa, "w").write("#!/bin/sh\nexit 0\n")
+    os.chmod(stub_easyrsa, 0o755)
+    data = env["OPENVPN_DATA_DIR"]
+    os.makedirs(f"{data}/pki", exist_ok=True)
+    open(f"{data}/pki/ca.crt", "w").write("x")
+    open(f"{data}/pki/issued", "w").close() if False else None
+    os.makedirs(f"{data}/pki/issued", exist_ok=True)
+    open(f"{data}/pki/ta.key", "w").write("x")
+    env["PATH"] = f"{stub_dir}:{env['PATH']}"
+    env["OPENVPN_SERVER_IP"] = "1.2.3.4"
+    # stub openssl/qrencode/google-authenticator/curl as needed
+    for tool in ("openssl", "qrencode", "google-authenticator"):
+        stub = os.path.join(stub_dir, tool)
+        open(stub, "w").write("#!/bin/sh\nexit 0\n")
+        os.chmod(stub, 0o755)
+
+    r = subprocess.run(
+        ["bash", f"{REPO}/scripts/add-user.sh", "cliuser", "--no-totp",
+         "--server-ip", "1.2.3.4"],
+        env=env, capture_output=True, text=True, timeout=60,
+    )
+    dir_absent = not os.path.exists(f"{data}/users/cliuser")
+    check("add-user.sh --no-totp leaves NO user dir (PAM invariant)",
+          dir_absent, f"(exit={r.returncode}, dir_absent={dir_absent})")
 
     # unauthenticated UI access redirected to login
     anon = appmod.app.test_client()
@@ -197,6 +249,10 @@ if b_ok:
     check("API rejects missing token", r.status_code == 401, f"(status={r.status_code})")
     r = anon.get("/api/v1/status", headers={"Authorization": "Bearer garbage"})
     check("API rejects garbage token", r.status_code == 401, f"(status={r.status_code})")
+    r = anon.get("/api/v1/status",
+                 headers={"Authorization": "Bearer café-à-go-go"})
+    check("API rejects non-ASCII token without 500",
+          r.status_code == 401, f"(status={r.status_code})")
     r = anon.get("/api/v1/status", headers={"Authorization": f"Bearer {TOKEN}"})
     check("API accepts valid token", r.status_code == 200, f"(status={r.status_code})")
 
@@ -205,11 +261,13 @@ if b_ok:
     from lib import audit as audit_mod
     audit_mod.log_event("user_added", target_user="vpn_alice",
                         details={"source": "test"}, admin_email="admin@example.com")
-    events = audit_mod.recent_events(limit=5)
+    events = audit_mod.recent_events(limit=50)
+    newest = events[0] if events else {}
     check("audit event recorded and retrievable",
-          len(events) == 1 and events[0]["action"] == "user_added"
-          and events[0]["target_user"] == "vpn_alice"
-          and events[0]["admin_email"] == "admin@example.com")
+          newest.get("action") == "user_added"
+          and newest.get("target_user") == "vpn_alice"
+          and newest.get("admin_email") == "admin@example.com",
+          f"(newest={newest.get('action')}, total={len(events)})")
     check("audit event shape matches dashboard template keys",
           all(k in events[0] for k in ("admin_email", "action", "target_user", "created_at")))
     check("created_at is an ISO string the template can slice",

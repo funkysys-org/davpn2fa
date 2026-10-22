@@ -28,8 +28,13 @@ done
 [[ -f "$PKI_DIR/issued/$USERNAME.crt" ]] && die "User '$USERNAME' already exists"
 
 USER_DIR="$DATA_DIR/users/$USERNAME"
-mkdir -p "$USER_DIR"
-chmod 700 "$USER_DIR"
+# PAM invariant (scripts/vpn-pam-helper.sh, has-secret mode): the user dir
+# exists ONLY for TOTP users. Do NOT create it for --no-totp (cert-only)
+# users, or the VPN layer will demand a TOTP code they don't have.
+if [[ "$REQUIRE_TOTP" == true ]]; then
+    mkdir -p "$USER_DIR"
+    chmod 700 "$USER_DIR"
+fi
 
 export EASYRSA_PKI="$PKI_DIR"
 export EASYRSA_BATCH=1

@@ -63,7 +63,14 @@ def require_api_auth(f):
 
         import hmac as _hmac
 
-        if not _hmac.compare_digest(token, expected):
+        try:
+            token_ok = _hmac.compare_digest(
+                token.encode("utf-8", "surrogatepass"),
+                expected.encode("utf-8", "surrogatepass"),
+            )
+        except Exception:
+            token_ok = False
+        if not token_ok:
             return _api_error("Invalid or expired token", 401)
 
         g.api_user = "api-token"
