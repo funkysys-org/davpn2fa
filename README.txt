@@ -72,6 +72,18 @@ QUICK START
        python -c "import secrets; print(secrets.token_hex(32))"
        -> FLASK_SECRET_KEY
 
+   IMPORTANT: always SINGLE-QUOTE the ADMIN_PASSWORD_HASH value in .env:
+
+       ADMIN_PASSWORD_HASH='scrypt:32768:8:1$xxxxxxxx$yyyyyyyy'
+
+   The hash contains '$' separators. docker-compose interpolates $VAR
+   sequences inside .env values and silently replaces them with empty
+   strings — an unquoted (or double-quoted) hash gets corrupted and
+   every login fails with "Invalid email or password". Single quotes
+   make compose take the value literally. The webapp also refuses to
+   boot with a hash that has lost its '$' separators, so a corrupted
+   value fails loudly at startup instead of silently at login.
+
    Authentication is ON by default (AUTH_DISABLED=0): the webapp refuses
    to boot without the credentials above. If you cannot use local auth and
    the UI is reachable ONLY from a trusted private network (or behind a

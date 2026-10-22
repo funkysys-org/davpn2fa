@@ -66,6 +66,24 @@ if not AUTH_DISABLED:
             "AUTH_DISABLED=1."
         )
 
+    # Werkzeug hashes look like 'scrypt:32768:8:1$salt$hash'. A value with
+    # no '$' is almost certainly corrupted by docker-compose interpolation:
+    # compose treats $VAR sequences inside .env values as variable
+    # references and substitutes them with an empty string. That mangled
+    # hash would make EVERY login fail with a misleading "Invalid email
+    # or password" — refuse to boot instead, with the actual cause.
+    import re as _re
+
+    if not _re.match(r"^[A-Za-z0-9]+(?::[0-9A-Za-z]+)*\$", ADMIN_PASSWORD_HASH):
+        raise RuntimeError(
+            "ADMIN_PASSWORD_HASH does not look like a Werkzeug password hash "
+            "(expected something like 'scrypt:32768:8:1$salt$hash' — it must "
+            "contain '$' separators). Most likely cause: docker-compose "
+            "interpolated the '$...' parts of the hash inside your .env "
+            "value. FIX: single-quote the value in .env — "
+            "ADMIN_PASSWORD_HASH='scrypt:32768:8:1$...$...'"
+        )
+
 app.secret_key = os.environ.get("FLASK_SECRET_KEY", "")
 _WEAK_SECRET = (
     not app.secret_key

@@ -131,6 +131,9 @@ def try_boot(env, expect_boot, name):
 try_boot({"AUTH_DISABLED": "0", "ADMIN_PASSWORD_HASH": "", "API_TOKEN": "",
           "FLASK_SECRET_KEY": STRONG},
          False, "auth ON + missing creds            -> refuses to boot")
+try_boot({"AUTH_DISABLED": "0", "ADMIN_PASSWORD_HASH": "scrypt:32768:8:1", "API_TOKEN": TOKEN,
+          "FLASK_SECRET_KEY": STRONG},
+         False, "auth ON + '$'-mangled hash         -> refuses to boot (compose interpolation guard)")
 try_boot({"AUTH_DISABLED": "0", "ADMIN_PASSWORD_HASH": HASH, "API_TOKEN": TOKEN,
           "FLASK_SECRET_KEY": "change-me-in-production"},
          False, "auth ON + known default secret     -> refuses to boot")
