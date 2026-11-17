@@ -4,7 +4,6 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     easy-rsa \
     libpam-google-authenticator \
     openssl \
-    curl \
     && rm -rf /var/lib/apt/lists/*
 
 # Match the symlink used by the openvpn container

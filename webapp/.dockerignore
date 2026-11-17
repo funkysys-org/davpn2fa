@@ -1,0 +1,6 @@
+# Keep the webapp build context minimal — bytecode and local artifacts
+# have no business inside the admin-UI image.
+__pycache__/
+*.pyc
+.pytest_cache/
+Dockerfile
