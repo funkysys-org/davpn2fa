@@ -1,0 +1,9 @@
+# Test-only dependencies for tests/test_fixes.py.
+# The webapp image deps live in webapp/requirements.txt — this file adds
+# what ONLY the suite needs: python-pam (live PAM stack probing) and
+# pyotp (real TOTP codes for the red/green section).
+# The suite also requires: root (it writes the container-exact /etc layout)
+# and the system package libpam-google-authenticator for the live PAM module —
+# both are provisioned in .github/workflows/ghcr.yml.
+python-pam==2.1.1
+pyotp==2.12.0
