@@ -1,0 +1,469 @@
+<!DOCTYPE html>
+<!--
+  davpn2fa — landing, direction B "SPEC SHEET / THE LOCKER" (light industrial)
+  Self-contained: zero CDN, system fonts only, all SVG inline. GitHub Pages ready.
+  Publish note: footer badges are plain spans — add real repo/GHCR links at the TODO comment.
+-->
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>davpn2fa (dark inversion) — self-hosted OpenVPN with enforced 2FA</title>
+<meta name="description" content="davpn2fa is a self-hosted OpenVPN appliance in two Docker containers. TOTP 2FA enforced at the PAM layer — required, no fallback, fail-closed. No cloud.">
+<link rel="icon" type="image/svg+xml" href='data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96"><path d="M48 6 84 18v28c0 22-14 38-36 44C26 84 12 68 12 46V18Z" fill="%23ffffff" stroke="%23e9e4d8" stroke-width="6"/></svg>'>
+<style>
+  :root{
+    --bg:#14161a; --panel:#1c1f24; --ink:#e9e4d8; --mut:#a7aeb8; --faint:#8a919c;
+    --line:#454a52; --acc:#ff8f4d; --acc-ink:#ffb37a; --grn:#6fc98a; --red:#ff8175;
+    --mono:ui-monospace,"SF Mono","Cascadia Code",Menlo,Consolas,monospace;
+    --sans:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+    --shadow:4px 4px 0 rgba(233,228,216,.10);
+  }
+  *{box-sizing:border-box} html{scroll-behavior:smooth}
+  body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.65 var(--sans);-webkit-font-smoothing:antialiased}
+  a{color:var(--acc-ink)}
+  :focus-visible{outline:2.5px solid var(--acc);outline-offset:2px;border-radius:3px}
+  section{scroll-margin-top:88px}
+  @media (prefers-reduced-motion:reduce){
+    *,*::before,*::after{animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}
+    html{scroll-behavior:auto}
+  }
+  .skip{position:absolute;left:-9999px;top:0}
+  .skip:focus{left:10px;top:10px;z-index:99;background:var(--ink);color:var(--bg);padding:10px 14px;font:700 14px var(--sans)}
+  .wrap{max-width:1080px;margin:0 auto;padding:0 20px}
+  code.k{font:600 .92em var(--mono);color:var(--acc-ink);background:#26221b;padding:2px 6px;border-radius:3px;white-space:nowrap}
+  .plate-label{display:inline-block;background:var(--ink);color:#14161a;font:700 10.5px/1 var(--mono);letter-spacing:.16em;padding:7px 11px;text-transform:uppercase}
+
+  /* chrome */
+  header.top{position:sticky;top:0;z-index:40;background:rgba(20,22,26,.96);border-bottom:2px solid var(--ink)}
+  .top .wrap{display:flex;align-items:center;flex-wrap:wrap;gap:4px 18px;padding-top:10px;padding-bottom:10px}
+  .brand{display:flex;align-items:center;gap:10px;font:800 18px/1 var(--sans);color:var(--ink);text-decoration:none;letter-spacing:-.02em}
+  .brand svg{width:27px;height:27px;flex:none}
+  .brand b{color:var(--acc-ink)}
+  nav{margin-left:auto;display:flex;flex-wrap:wrap;gap:2px}
+  nav a{font:700 11px/1 var(--mono);letter-spacing:.08em;color:var(--mut);text-decoration:none;padding:11px 9px;text-transform:uppercase;white-space:nowrap}
+  nav a:hover{color:var(--ink);background:#23272d}
+
+  section{padding:74px 0;border-top:1px solid var(--line)}
+  .sec-h{display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-bottom:12px}
+  h2{margin:0;font:800 clamp(25px,4.4vw,34px)/1.15 var(--sans);letter-spacing:-.022em}
+  .sec-sub{color:var(--mut);max-width:62ch;margin:10px 0 0;text-wrap:pretty}
+
+  /* hero */
+  .hero{border-top:none;padding:64px 0 56px}
+  .hero-plate{position:relative;background:var(--panel);border:2px solid var(--ink);box-shadow:var(--shadow);padding:40px 26px 34px}
+  .hero-plate::before,.hero-plate::after{content:"";position:absolute;top:12px;width:13px;height:13px;border-radius:50%;background:var(--bg);border:2px solid var(--line)}
+  .hero-plate::before{left:12px}.hero-plate::after{right:12px}
+  .serial{display:flex;flex-wrap:wrap;gap:6px 22px;font:700 10.5px/1.5 var(--mono);letter-spacing:.12em;color:var(--faint);text-transform:uppercase;margin-bottom:22px}
+  .hero-grid{display:grid;gap:38px;margin-top:8px}
+  @media(min-width:920px){.hero-grid{grid-template-columns:1.12fr .88fr;align-items:center;gap:52px}}
+  h1{margin:14px 0 18px;font:800 clamp(33px,6.2vw,56px)/1.05 var(--sans);letter-spacing:-.03em;text-wrap:balance}
+  h1 em{font-style:normal;color:var(--acc-ink)}
+  .lede{color:var(--mut);font-size:17px;max-width:56ch;text-wrap:pretty}
+  .cta-row{display:flex;flex-wrap:wrap;gap:12px;margin-top:26px}
+  .btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:50px;padding:12px 22px;font:700 15px var(--sans);text-decoration:none;border:2px solid var(--ink);transition:background .15s ease-out,color .15s ease-out,box-shadow .15s ease-out;box-shadow:3px 3px 0 var(--ink)}
+  .btn:active{transform:translate(2px,2px);box-shadow:1px 1px 0 var(--ink)}
+  .btn-pri{background:var(--ink);color:#14161a}
+  .btn-pri:hover{background:var(--acc);border-color:var(--acc);box-shadow:3px 3px 0 rgba(233,228,216,.22)}
+  .btn-sec{background:var(--panel);color:var(--ink)}
+  .btn-sec:hover{background:#23272d}
+  .micro{margin-top:14px;font:12px/1.6 var(--mono);color:var(--faint)}
+  .fob{border:2px solid var(--ink);background:var(--bg);padding:26px 22px;text-align:center;box-shadow:var(--shadow)}
+  .fob .mark{width:84px;height:84px}
+  .digits{display:flex;gap:8px;justify-content:center;margin:18px 0 12px}
+  .digit{width:42px;height:54px;display:grid;place-items:center;font:700 25px var(--mono);color:var(--ink);background:var(--panel);border:2px solid var(--ink)}
+  .fob-cap{font:11.5px/1.6 var(--mono);color:var(--faint)}
+  .hero-stamps{display:flex;flex-wrap:wrap;gap:10px 14px;margin-top:30px;align-items:center}
+  .stampchip{display:inline-block;border:2.5px solid currentColor;border-radius:3px;padding:5px 10px;font:800 10.5px/1 var(--mono);letter-spacing:.12em;transform:rotate(-1.6deg)}
+  .stampchip.s2{transform:rotate(1.4deg)}
+  .stampchip.s3{transform:rotate(-.8deg)}
+  .c-grn{color:var(--grn)} .c-red{color:var(--red)} .c-ink{color:var(--ink)}
+  .spec-table{width:100%;border-collapse:collapse;font:13px/1.6 var(--mono);margin-top:26px;background:var(--panel);border:2px solid var(--ink);box-shadow:var(--shadow)}
+  .spec-table caption{text-align:left;background:var(--ink);color:#14161a;font:700 10.5px/1 var(--mono);letter-spacing:.16em;padding:8px 12px;text-transform:uppercase}
+  .spec-table td{padding:9px 12px;border-top:1px solid var(--line);vertical-align:top}
+  .spec-table td:first-child{width:38%;font-weight:700;letter-spacing:.06em;color:var(--faint);text-transform:uppercase;font-size:11px}
+
+  /* two keys */
+  .keys{display:grid;gap:16px;margin-top:30px}
+  @media(min-width:780px){.keys{grid-template-columns:1fr 44px 1fr;align-items:stretch}}
+  .keycard{background:var(--panel);border:2px solid var(--ink);box-shadow:var(--shadow);padding:22px;position:relative}
+  .keycard .tag{font:700 10px/1 var(--mono);letter-spacing:.14em;color:var(--faint);text-transform:uppercase}
+  .keycard .k-ic{width:32px;height:32px;color:var(--acc-ink);margin:12px 0 4px}
+  .keycard h3{margin:0 0 8px;font:800 19px var(--sans);letter-spacing:-.01em}
+  .keycard p{margin:0;color:var(--mut);font-size:14.5px;text-wrap:pretty}
+  .plus{display:none;align-self:center;text-align:center;font:800 26px var(--mono);color:var(--faint)}
+  @media(min-width:780px){.plus{display:block}}
+  .keys-note{margin-top:18px;border:2px solid var(--ink);background:var(--panel);box-shadow:var(--shadow);padding:14px 18px;text-align:center;font:800 15px var(--mono);letter-spacing:.02em}
+  .note{margin-top:16px;font:12.5px/1.7 var(--mono);color:var(--faint);text-wrap:pretty}
+
+  /* login chain */
+  .chain{list-style:none;margin:30px 0 0;padding:0;display:grid;gap:14px}
+  @media(min-width:940px){.chain{grid-template-columns:repeat(5,1fr)}}
+  .step{position:relative;background:var(--panel);border:2px solid var(--ink);padding:16px 15px;box-shadow:var(--shadow)}
+  .step .n{font:700 10.5px var(--mono);letter-spacing:.14em;color:var(--acc-ink)}
+  .step h3{margin:7px 0 6px;font:700 13.5px/1.35 var(--mono)}
+  .step p{margin:0;font-size:12.5px;color:var(--mut);line-height:1.55;text-wrap:pretty}
+  .step.gate{outline:2.5px solid var(--grn);outline-offset:3px}
+  .badge-req{position:absolute;top:-13px;right:8px;background:var(--grn);color:#14161a;font:800 10px/1 var(--mono);letter-spacing:.1em;padding:5px 8px;transform:rotate(2deg)}
+  @media(min-width:940px){
+    .step:not(:last-child)::after{content:"→";position:absolute;right:-16px;top:44%;color:var(--ink);font:800 15px var(--mono);z-index:1}
+  }
+  .refused{margin-top:24px;border:2px dashed var(--red);background:#2b1d1b;padding:14px 18px;font:700 13px/1.7 var(--mono);color:var(--red);text-wrap:pretty}
+
+  /* architecture */
+  .arch-scroll{margin-top:28px;overflow-x:auto;border:2px solid var(--ink);background:var(--panel);box-shadow:var(--shadow)}
+  .arch-scroll svg{display:block;min-width:680px;width:100%;height:auto}
+  .why{display:grid;gap:14px;margin-top:20px;grid-template-columns:repeat(auto-fit,minmax(250px,1fr))}
+  .why .w{background:var(--panel);border:2px solid var(--ink);box-shadow:var(--shadow);padding:16px}
+  .why h3{margin:0 0 6px;font:800 14px var(--sans)}
+  .why p{margin:0;font-size:13.5px;color:var(--mut);text-wrap:pretty}
+
+  /* terminals + deploy */
+  .term{background:var(--panel);border:2px solid var(--ink);box-shadow:var(--shadow)}
+  .term-bar{display:flex;align-items:center;gap:8px;padding:8px 12px;background:var(--ink);color:#14161a}
+  .term-title{font:700 10.5px/1 var(--mono);letter-spacing:.12em;text-transform:uppercase}
+  .copy{margin-left:auto;font:700 10.5px/1 var(--mono);letter-spacing:.06em;color:#14161a;background:transparent;border:1.5px solid #14161a;padding:5px 9px;cursor:pointer}
+  .copy:hover{background:#14161a;color:var(--ink)}
+  .copy.ok{background:var(--grn);border-color:var(--grn);color:#14161a}
+  .term-body{padding:14px 16px;font:14px/1.75 var(--mono);color:var(--ink);overflow-x:auto;background:repeating-linear-gradient(0deg,transparent 0 27px,rgba(233,228,216,.05) 27px 28px)}
+  .term-body .p{color:var(--acc-ink);user-select:none}
+  .dsteps{display:grid;gap:18px;margin-top:30px}
+  @media(min-width:900px){.dsteps{grid-template-columns:repeat(3,1fr)}}
+  .dstep .dn{display:inline-block;background:var(--ink);color:#14161a;font:800 12px/1 var(--mono);letter-spacing:.14em;padding:7px 10px}
+  .dstep h3{margin:12px 0 12px;font:800 17px var(--sans);letter-spacing:-.01em}
+  .dstep .dnote{margin:10px 2px 0;font:12px/1.65 var(--mono);color:var(--faint);text-wrap:pretty}
+  .ui-flow{background:var(--panel);border:2px solid var(--ink);padding:16px 18px;font-size:14px;color:var(--mut);box-shadow:var(--shadow)}
+  .ui-flow ol{margin:8px 0 0;padding-left:20px}
+  .ui-flow li{margin:6px 0}
+  .ui-flow b{color:var(--ink)}
+  .cli-box{margin-top:22px;border:2px dashed var(--ink);background:var(--panel);padding:14px 16px;font:13px/1.8 var(--mono);color:var(--mut);text-wrap:pretty}
+  .cli-box .t{font:800 10.5px/1 var(--mono);letter-spacing:.14em;color:var(--acc-ink);display:block;margin-bottom:6px}
+
+  /* hardening */
+  .stamps{display:grid;gap:16px;margin-top:30px;grid-template-columns:repeat(auto-fit,minmax(250px,1fr))}
+  .stamp{background:var(--panel);border:2px solid var(--ink);box-shadow:var(--shadow);padding:16px 17px}
+  .stamp h3{margin:0;font:800 12px/1.4 var(--mono);letter-spacing:.1em;color:var(--ink);display:flex;gap:9px;align-items:center}
+  .stamp h3 .tick{color:var(--grn);font-size:14px}
+  .stamp p{margin:9px 0 0;font-size:13.5px;color:var(--mut);line-height:1.6;text-wrap:pretty}
+  .history{margin-top:28px;border:2px solid var(--ink);background:#262a30;padding:22px 24px;position:relative;box-shadow:var(--shadow)}
+  .history .t{display:inline-block;background:var(--acc);color:#14161a;font:800 10.5px/1 var(--mono);letter-spacing:.16em;padding:6px 10px;transform:rotate(-1.5deg)}
+  .history p{margin:14px 0 0;color:#c9c3b6;font-size:15px;max-width:74ch;text-wrap:pretty}
+  .history p b{color:var(--ink)}
+
+  footer{border-top:2px solid var(--ink);margin-top:8px;padding:0 0 56px}
+  .bar{height:14px;background:repeating-linear-gradient(90deg,var(--ink) 0 2px,transparent 2px 5px,var(--ink) 5px 7px,transparent 7px 11px)}
+  .foot{display:flex;flex-wrap:wrap;gap:14px 28px;align-items:center;justify-content:space-between;padding-top:34px}
+  .foot-brand{display:flex;align-items:center;gap:10px;font:800 14px var(--sans);color:var(--ink)}
+  .foot-brand svg{width:22px;height:22px}
+  .foot-note{font:12px/1.7 var(--mono);color:var(--faint);text-align:right}
+  .foot-badges{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px;justify-content:flex-end}
+  .foot-badges span{font:700 10px/1 var(--mono);letter-spacing:.08em;color:var(--ink);border:1.5px solid var(--ink);padding:4px 8px}
+</style>
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+
+<header class="top">
+  <div class="wrap">
+    <a class="brand" href="#top" aria-label="davpn2fa — back to top">
+      <svg viewBox="0 0 96 96" aria-hidden="true"><path d="M48 6 84 18v28c0 22-14 38-36 44C26 84 12 68 12 46V18Z" fill="#ffffff" stroke="#e9e4d8" stroke-width="5" stroke-linejoin="round"/><path d="M30 88V56a18 18 0 0 1 36 0v32" fill="none" stroke="#e9e4d8" stroke-width="5"/><path d="M38 88V60a10 10 0 0 1 20 0v28Z" fill="#e9e4d8"/><g fill="#14161a"><circle cx="42" cy="66" r="2.7"/><circle cx="48" cy="66" r="2.7"/><circle cx="54" cy="66" r="2.7"/><circle cx="42" cy="78" r="2.7"/><circle cx="48" cy="78" r="2.7"/><circle cx="54" cy="78" r="2.7"/></g></svg>
+      davpn<b>2fa</b>
+    </a>
+    <nav aria-label="Sections">
+      <a href="#keys">two keys</a>
+      <a href="#login">login</a>
+      <a href="#arch">architecture</a>
+      <a href="#deploy">deploy</a>
+      <a href="#hardening">hardening</a>
+    </nav>
+  </div>
+</header>
+
+<main id="main">
+  <!-- HERO -->
+  <section class="hero" id="top" aria-labelledby="hero-h">
+    <div class="wrap">
+      <div class="hero-plate">
+        <div class="serial" aria-hidden="true">
+          <span>MODEL: DAVPN-2FA</span><span>TYPE: OPENVPN APPLIANCE</span><span>FACTOR 2: TOTP — ENFORCED</span><span>SERIAL: YOUR-HOSTNAME</span>
+        </div>
+        <div class="hero-grid">
+          <div>
+            <span class="plate-label">Self-hosted OpenVPN appliance</span>
+            <h1 id="hero-h">Your VPN, with a second factor that <em>can't be skipped</em>.</h1>
+            <p class="lede">
+              davpn2fa is a self-hosted OpenVPN appliance that ships as two Docker containers: the VPN
+              data plane and a small local admin UI. Every login is checked against a TOTP code at the
+              PAM layer — <code class="k">required</code>, no fallback, fail-closed. One compose file,
+              no cloud, nothing to trust but your own disk.
+            </p>
+            <div class="cta-row">
+              <a class="btn btn-pri" href="#deploy">Deploy in 3 steps</a>
+              <a class="btn btn-sec" href="#login">How a login works</a>
+            </div>
+            <p class="micro">no signup · no email · no telemetry — it's your server</p>
+          </div>
+          <div class="fob" role="img" aria-label="Decorative token showing a six-digit code">
+            <svg class="mark" viewBox="0 0 96 96" aria-hidden="true"><path d="M48 6 84 18v28c0 22-14 38-36 44C26 84 12 68 12 46V18Z" fill="#ffffff" stroke="#e9e4d8" stroke-width="5" stroke-linejoin="round"/><path d="M30 88V56a18 18 0 0 1 36 0v32" fill="none" stroke="#e9e4d8" stroke-width="5"/><path d="M38 88V60a10 10 0 0 1 20 0v28Z" fill="#e9e4d8"/><g fill="#14161a"><circle cx="42" cy="66" r="2.7"/><circle cx="48" cy="66" r="2.7"/><circle cx="54" cy="66" r="2.7"/><circle cx="42" cy="78" r="2.7"/><circle cx="48" cy="78" r="2.7"/><circle cx="54" cy="78" r="2.7"/></g></svg>
+            <div class="digits" aria-hidden="true">
+              <span class="digit">4</span><span class="digit">2</span><span class="digit">7</span>
+              <span class="digit">9</span><span class="digit">0</span><span class="digit">1</span>
+            </div>
+            <p class="fob-cap">demo display — the real code lives in your<br>authenticator app and rotates every 30 s</p>
+          </div>
+        </div>
+        <div class="hero-stamps" aria-label="Key properties">
+          <span class="stampchip c-grn">2FA ENFORCED</span>
+          <span class="stampchip c-red s2">FAIL-CLOSED</span>
+          <span class="stampchip c-ink s3">NO CLOUD</span>
+          <span class="stampchip c-ink s2">LOCAL AUDIT</span>
+        </div>
+      </div>
+
+      <table class="spec-table">
+        <caption>Spec sheet</caption>
+        <tbody>
+          <tr><td>What it is</td><td>self-hosted OpenVPN appliance — VPN server + local admin UI, two containers, one compose file</td></tr>
+          <tr><td>Second factor</td><td>TOTP (Google Authenticator), enforced at the PAM layer — <code class="k">required</code>, no fallback, fail-closed</td></tr>
+          <tr><td>Transport</td><td>OpenVPN, udp/1194</td></tr>
+          <tr><td>Admin UI</td><td>http://127.0.0.1:8080 — create/revoke users, TOTP QR, .ovpn downloads, split-tunnel routes</td></tr>
+          <tr><td>Auth</td><td>local: admin scrypt password + constant-time API bearer token</td></tr>
+          <tr><td>Audit</td><td>local SQLite log</td></tr>
+          <tr><td>Images</td><td>amd64 + arm64 on GHCR, CI quality gate: 29 checks</td></tr>
+          <tr><td>Cloud</td><td>none</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- 01 TWO KEYS -->
+  <section id="keys" aria-labelledby="keys-h">
+    <div class="wrap">
+      <div class="sec-h"><span class="plate-label">01</span><h2 id="keys-h">Two keys to enter</h2></div>
+      <p class="sec-sub">A davpn2fa user carries two keys. Both are checked. Every login.</p>
+      <div class="keys">
+        <div class="keycard">
+          <span class="tag">KEY 1 — DOESN'T CHANGE</span>
+          <svg class="k-ic" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="8" cy="8" r="4.5"/><path d="M11.5 11.5 20 20M17 17l2.5-2.5M14.5 19.5l2.5-2.5"/></svg>
+          <h3>The certificate</h3>
+          <p>Baked into the <code class="k">.ovpn</code> profile you download from the admin UI.
+             It doesn't change — guard the file, and you guard the key.</p>
+        </div>
+        <div class="plus" aria-hidden="true">+</div>
+        <div class="keycard">
+          <span class="tag">KEY 2 — CHANGES EVERY 30 S</span>
+          <svg class="k-ic" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="7" y="3" width="10" height="18" rx="2"/><path d="M10.5 17.5h3"/><g fill="currentColor" stroke="none"><circle cx="9.9" cy="8" r=".95"/><circle cx="12" cy="8" r=".95"/><circle cx="14.1" cy="8" r=".95"/><circle cx="9.9" cy="11" r=".95"/><circle cx="12" cy="11" r=".95"/><circle cx="14.1" cy="11" r=".95"/></g></svg>
+          <h3>The six-digit code</h3>
+          <p>From the authenticator app you scanned at signup. It rotates every 30 seconds,
+             so a certificate copied last year is still not enough.</p>
+        </div>
+      </div>
+      <p class="keys-note">One key alone opens nothing.</p>
+      <p class="note">Need a service account or a conscious bootstrap? <code class="k">add-user --no-totp</code>
+         exists — an explicit, per-user choice you make, never a silent default.</p>
+    </div>
+  </section>
+
+  <!-- 02 HOW A LOGIN HAPPENS -->
+  <section id="login" aria-labelledby="login-h">
+    <div class="wrap">
+      <div class="sec-h"><span class="plate-label">02</span><h2 id="login-h">How a login happens</h2></div>
+      <p class="sec-sub">No magic layer, no dashboard in the middle — the check lives in the VPN server's own auth stack.</p>
+      <ol class="chain">
+        <li class="step"><span class="n">STEP 1</span><h3>TLS handshake</h3><p>The client proves its certificate before anything else happens.</p></li>
+        <li class="step"><span class="n">STEP 2</span><h3>PAM takes over</h3><p>The session hits the PAM stack — auth is delegated there, not to a web panel.</p></li>
+        <li class="step"><span class="n">STEP 3</span><h3>pam_exec helper</h3><p>The helper asks for the 6-digit code from your authenticator.</p></li>
+        <li class="step gate"><span class="badge-req">REQUIRED</span><span class="n">STEP 4</span><h3>TOTP verify</h3><p>google-authenticator checks the code against the stored seed. Gate: <code class="k">required</code> — no fallback.</p></li>
+        <li class="step"><span class="n">STEP 5</span><h3>Session opens</h3><p>Only now does the tunnel carry traffic. Not one packet earlier.</p></li>
+      </ol>
+      <p class="refused">MISSING CODE · WRONG CODE · EXPIRED CODE → CONNECTION REFUSED. Same answer every time: no session. There is no "skip", no "remember this device", no override.</p>
+    </div>
+  </section>
+
+  <!-- 03 ARCHITECTURE -->
+  <section id="arch" aria-labelledby="arch-h">
+    <div class="wrap">
+      <div class="sec-h"><span class="plate-label">03</span><h2 id="arch-h">The architecture: two containers, on purpose</h2></div>
+      <p class="sec-sub">The part that moves packets and the part you click on are deliberately not the same container.</p>
+      <div class="arch-scroll" role="img" aria-label="Diagram: one Docker host running two containers — the openvpn data plane with NET_ADMIN and /dev/net/tun speaking UDP 1194 to VPN clients, and the web admin UI with no special capabilities on 127.0.0.1:8080; both share a PKI volume.">
+        <svg viewBox="0 0 760 430" font-family="ui-monospace,Menlo,Consolas,monospace">
+          <defs>
+            <marker id="ah" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+              <path d="M0 0 10 5 0 10z" fill="#a7aeb8"/>
+            </marker>
+          </defs>
+          <rect x="60" y="18" width="210" height="48" rx="0" fill="#1c1f24" stroke="#e9e4d8" stroke-width="1.5"/>
+          <text x="165" y="39" text-anchor="middle" font-size="12.5" font-weight="700" fill="#e9e4d8">VPN CLIENTS</text>
+          <text x="165" y="56" text-anchor="middle" font-size="10.5" fill="#a7aeb8">laptop · phone · server</text>
+          <rect x="480" y="18" width="220" height="48" rx="0" fill="#1c1f24" stroke="#e9e4d8" stroke-width="1.5"/>
+          <text x="590" y="39" text-anchor="middle" font-size="12.5" font-weight="700" fill="#e9e4d8">ADMIN BROWSER</text>
+          <text x="590" y="56" text-anchor="middle" font-size="10.5" fill="#a7aeb8">on the same host</text>
+          <line x1="165" y1="66" x2="165" y2="144" stroke="#a7aeb8" stroke-width="1.6" marker-end="url(#ah)"/>
+          <text x="174" y="106" font-size="11" fill="#e9e4d8">udp/1194</text>
+          <line x1="590" y1="66" x2="590" y2="144" stroke="#a7aeb8" stroke-width="1.6" marker-end="url(#ah)"/>
+          <text x="599" y="98" font-size="11" fill="#e9e4d8">http://127.0.0.1:8080</text>
+          <text x="599" y="113" font-size="10" fill="#a7aeb8">localhost only</text>
+          <rect x="30" y="150" width="700" height="262" fill="none" stroke="#9d968a" stroke-width="1.5" stroke-dasharray="6 5"/>
+          <text x="48" y="176" font-size="11.5" font-weight="700" letter-spacing="2" fill="#8a919c">DOCKER HOST — ONE COMPOSE FILE</text>
+          <rect x="60" y="192" width="280" height="196" fill="#1c1f24" stroke="#e9e4d8" stroke-width="2"/>
+          <text x="80" y="220" font-size="14.5" font-weight="700" fill="#e9e4d8">openvpn</text>
+          <text x="152" y="220" font-size="10.5" fill="#a7aeb8">data plane</text>
+          <rect x="80" y="234" width="88" height="24" fill="none" stroke="#e9e4d8"/><text x="124" y="250" text-anchor="middle" font-size="10.5" fill="#e9e4d8">NET_ADMIN</text>
+          <rect x="176" y="234" width="106" height="24" fill="none" stroke="#e9e4d8"/><text x="229" y="250" text-anchor="middle" font-size="10.5" fill="#e9e4d8">/dev/net/tun</text>
+          <rect x="80" y="266" width="202" height="26" fill="#262a30" stroke="#6fc98a" stroke-width="1.5"/>
+          <text x="181" y="283" text-anchor="middle" font-size="10.5" font-weight="700" fill="#6fc98a">PAM · TOTP GATE — required</text>
+          <text x="80" y="316" font-size="11" fill="#a7aeb8">every login: cert → code → open</text>
+          <text x="80" y="334" font-size="11" fill="#a7aeb8">refuses to boot on insecure config</text>
+          <text x="80" y="366" font-size="11" fill="#a7aeb8">PKI lives on the shared volume</text>
+          <rect x="470" y="192" width="240" height="196" fill="#1c1f24" stroke="#e9e4d8" stroke-width="2"/>
+          <text x="490" y="220" font-size="14.5" font-weight="700" fill="#e9e4d8">web</text>
+          <text x="526" y="220" font-size="10.5" fill="#a7aeb8">admin ui</text>
+          <rect x="490" y="234" width="130" height="24" fill="none" stroke="#e9e4d8"/><text x="555" y="250" text-anchor="middle" font-size="10.5" fill="#e9e4d8">NO SPECIAL CAPS</text>
+          <rect x="490" y="266" width="130" height="24" fill="none" stroke="#e9e4d8"/><text x="555" y="283" text-anchor="middle" font-size="10.5" fill="#e9e4d8">127.0.0.1 :8080</text>
+          <text x="490" y="316" font-size="11" fill="#a7aeb8">users · TOTP QR · .ovpn files</text>
+          <text x="490" y="334" font-size="11" fill="#a7aeb8">audit log → local SQLite</text>
+          <text x="490" y="366" font-size="11" fill="#a7aeb8">admin auth: scrypt + bearer</text>
+          <g>
+            <line x1="340" y1="300" x2="358" y2="300" stroke="#a7aeb8" stroke-width="1.4"/>
+            <line x1="452" y1="300" x2="470" y2="300" stroke="#a7aeb8" stroke-width="1.4"/>
+            <ellipse cx="405" cy="252" rx="48" ry="10" fill="#262a30" stroke="#e9e4d8" stroke-width="1.5"/>
+            <path d="M357 252v58c0 5.5 21.5 10 48 10s48-4.5 48-10v-58" fill="#262a30" stroke="#e9e4d8" stroke-width="1.5"/>
+            <text x="405" y="344" text-anchor="middle" font-size="11" font-weight="700" fill="#e9e4d8">PKI VOLUME</text>
+            <text x="405" y="360" text-anchor="middle" font-size="10" fill="#a7aeb8">shared, one copy</text>
+          </g>
+        </svg>
+      </div>
+      <div class="why">
+        <div class="w"><h3>Capability split</h3><p>The data plane gets <code class="k">NET_ADMIN</code> and <code class="k">/dev/net/tun</code> because it must. The admin UI gets none — it doesn't need them, so it doesn't have them.</p></div>
+        <div class="w"><h3>One PKI, zero copies</h3><p>Certificates live on a shared volume both containers read. One source of truth, nothing synced by hand.</p></div>
+        <div class="w"><h3>Tunnels survive UI work</h3><p>Rebuild or redeploy the admin UI and your tunnels stay up — the data plane doesn't care. That's why it's two containers, not one.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 04 DEPLOY -->
+  <section id="deploy" aria-labelledby="deploy-h">
+    <div class="wrap">
+      <div class="sec-h"><span class="plate-label">04</span><h2 id="deploy-h">Deploy in three steps</h2></div>
+      <p class="sec-sub">These are the actual commands from the README. Nothing below is hand-waving.</p>
+      <div class="dsteps">
+        <div class="dstep">
+          <span class="dn">STEP 01</span>
+          <h3>Bring it up</h3>
+          <div class="term">
+            <div class="term-bar"><span class="term-title">step-1.sh</span><button class="copy" type="button" data-copy="docker compose up -d --build">COPY</button></div>
+            <div class="term-body"><span class="p">$ </span>docker compose up -d --build</div>
+          </div>
+          <p class="dnote">Builds and starts both containers. No installer, no wizard.</p>
+        </div>
+        <div class="dstep">
+          <span class="dn">STEP 02</span>
+          <h3>First boot, once</h3>
+          <div class="term">
+            <div class="term-bar"><span class="term-title">step-2.sh</span><button class="copy" type="button" data-copy="docker exec -it openvpn init-pki&#10;docker compose restart openvpn">COPY</button></div>
+            <div class="term-body"><span class="p">$ </span>docker exec -it openvpn init-pki
+<span class="p">$ </span>docker compose restart openvpn</div>
+          </div>
+          <p class="dnote">Creates the PKI — once. The restart lets the server pick it up.</p>
+        </div>
+        <div class="dstep">
+          <span class="dn">STEP 03</span>
+          <h3>First user</h3>
+          <div class="ui-flow">
+            Open <b>http://127.0.0.1:8080</b> and:
+            <ol>
+              <li>sign in (<code class="k">ADMIN_EMAIL</code> + password)</li>
+              <li>create the user</li>
+              <li>scan the TOTP QR with your authenticator</li>
+              <li>download the <code class="k">.ovpn</code> profile</li>
+            </ol>
+          </div>
+          <p class="dnote">The admin UI answers on 127.0.0.1 — it's not on the internet unless you put it there.</p>
+        </div>
+      </div>
+      <div class="cli-box">
+        <span class="t">PREFER THE CLI? SAME ROOM, OTHER DOOR.</span>
+        docker exec -it openvpn add-user &lt;username&gt; [--server-ip &lt;IP&gt;] [--no-totp]<br>
+        usernames: letters, digits, <code class="k">_</code> and <code class="k">-</code>.
+      </div>
+    </div>
+  </section>
+
+  <!-- 05 HARDENING -->
+  <section id="hardening" aria-labelledby="hard-h">
+    <div class="wrap">
+      <div class="sec-h"><span class="plate-label">05</span><h2 id="hard-h">Hardening, on the record</h2></div>
+      <p class="sec-sub">What the appliance promises, stated so you can check it in the code.</p>
+      <div class="stamps">
+        <div class="stamp"><h3><span class="tick">✓</span> 2FA ENFORCED</h3><p>The PAM gate is <code class="k">required</code> — no fallback path, fail-closed. The code is part of the login, not a checkbox next to it.</p></div>
+        <div class="stamp"><h3><span class="tick">✓</span> FAIL-CLOSED BOOT</h3><p>An insecure config doesn't start with a warning — the container refuses to boot until it's fixed.</p></div>
+        <div class="stamp"><h3><span class="tick">✓</span> LOCAL AUTH</h3><p>Admin password hashed with scrypt; the API uses a bearer token compared in constant time. No external identity provider.</p></div>
+        <div class="stamp"><h3><span class="tick">✓</span> NO CLOUD</h3><p>Nothing phones home, no accounts anywhere. If it stops working, the reason is on your machine, not someone else's status page.</p></div>
+        <div class="stamp"><h3><span class="tick">✓</span> LOCAL AUDIT</h3><p>Every admin action lands in a local SQLite log — on your disk, readable with sqlite3, gone when you say so.</p></div>
+        <div class="stamp"><h3><span class="tick">✓</span> SHIPPED CHECKED</h3><p>CI runs a 29-check quality gate before publishing multi-arch images (amd64 + arm64) to GHCR.</p></div>
+      </div>
+      <div class="history">
+        <span class="t">FROM THE AUDIT LOG</span>
+        <p>davpn2fa started as a generated appliance whose 2FA was, frankly, <b>decorative</b>. An internal audit
+        called it exactly that — then fixed it: the TOTP gate is now <b>required at the PAM layer</b>, an open
+        redirect is gone, and the boot guard <b>refuses insecure configs</b> instead of shrugging at them. We kept
+        the receipt because it's the point: the enforcement is real, and the code that proves it is yours to read.</p>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <div class="bar" aria-hidden="true"></div>
+  <div class="wrap foot">
+    <div class="foot-brand">
+      <svg viewBox="0 0 96 96" aria-hidden="true"><path d="M48 6 84 18v28c0 22-14 38-36 44C26 84 12 68 12 46V18Z" fill="#ffffff" stroke="#e9e4d8" stroke-width="5" stroke-linejoin="round"/><path d="M30 88V56a18 18 0 0 1 36 0v32" fill="none" stroke="#e9e4d8" stroke-width="5"/><path d="M38 88V60a10 10 0 0 1 20 0v28Z" fill="#e9e4d8"/><g fill="#14161a"><circle cx="42" cy="66" r="2.7"/><circle cx="48" cy="66" r="2.7"/><circle cx="54" cy="66" r="2.7"/><circle cx="42" cy="78" r="2.7"/><circle cx="48" cy="78" r="2.7"/><circle cx="54" cy="78" r="2.7"/></g></svg>
+      davpn2fa — the honest sysadmin's VPN locker.
+    </div>
+    <div>
+      <div class="foot-note">self-hosted · open source · your keys, your disk</div>
+      <div class="foot-badges"><a href="https://github.com/funkysys-org/davpn2fa">OPEN SOURCE</a><a href="https://github.com/funkysys-org?tab=packages">IMAGES ON GHCR</a><span>AMD64 + ARM64</span></div>
+    </div>
+  </div>
+</footer>
+
+<script>
+(function(){
+  "use strict";
+  var RM = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+  /* copy buttons */
+  document.querySelectorAll(".copy").forEach(function(btn){
+    btn.addEventListener("click", function(){
+      var txt = btn.getAttribute("data-copy") || "";
+      var done = function(){
+        var old = btn.textContent;
+        btn.textContent = "COPIED"; btn.classList.add("ok");
+        setTimeout(function(){ btn.textContent = old; btn.classList.remove("ok"); }, 1400);
+      };
+      if (navigator.clipboard && navigator.clipboard.writeText){
+        navigator.clipboard.writeText(txt).then(done, fallback);
+      } else fallback();
+      function fallback(){
+        var ta = document.createElement("textarea");
+        ta.value = txt; ta.style.position = "fixed"; ta.style.opacity = "0";
+        document.body.appendChild(ta); ta.select();
+        try{ document.execCommand("copy"); done(); }catch(e){}
+        document.body.removeChild(ta);
+      }
+    });
+  });
+
+  /* demo TOTP digits — decorative, clearly labeled as demo */
+  if (!RM){
+    var cells = document.querySelectorAll(".digit");
+    if (cells.length === 6){
+      setInterval(function(){
+        cells.forEach(function(c){ c.textContent = String(Math.floor(Math.random()*10)); });
+      }, 2400);
+    }
+  }
+})();
+</script>
+</body>
+</html>
